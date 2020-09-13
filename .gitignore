@@ -1,5 +1,10 @@
 ### Project Specific stuff
 test_run_dir/*
+### tmp verilog
+*.fir
+*.v
+*.json
+
 ### XilinxISE template
 # intermediate build files
 *.bgn
