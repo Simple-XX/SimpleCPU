@@ -76,7 +76,3 @@ class decoder_3_8 extends Module {
   }
   io.out := tmp.asUInt
 }
-
-class common {
-
-}
