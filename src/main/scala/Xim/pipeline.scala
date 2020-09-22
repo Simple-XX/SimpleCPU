@@ -1,81 +1,8 @@
 package Xim
 
 import chisel3._
+import javafx.scene.input.InputMethodTextRun
 
-class I_imm_bundle extends Bundle {
-  val inst_31 = UInt(1.W)
-  val inst_30_25 = UInt(6.W)
-  val inst_24_21 = UInt(4.W)
-  val inst_20 = UInt(1.W)
-}
-
-class S_imm_bundle extends Bundle {
-  val inst_31 = UInt(1.W)
-  val inst_30_25 = UInt(6.W)
-  val inst_11_8 = UInt(4.W)
-  val inst_7 = UInt(1.W)
-}
-
-class B_imm_bundle extends Bundle {
-  val inst_31 = UInt(1.W)
-  val inst_7 = UInt(1.W)
-  val inst_30_25 = UInt(6.W)
-  val inst_11_8 = UInt(4.W)
-  val zero = UInt(1.W)
-}
-
-class U_imm_bundle extends Bundle {
-  val inst_31 = UInt(1.W)
-  val inst_30_20 = UInt(11.W)
-  val inst_19_12 = UInt(8.W)
-  val zero = UInt(12.W)
-}
-
-class J_imm_bundle extends Bundle {
-  val inst_31 = UInt(1.W)
-  val inst_19_12 = UInt(8.W)
-  val inst_20 = UInt(1.W)
-  val inst_30_25 = UInt(6.W)
-  val inst_24_21 = UInt(4.W)
-  val zero = UInt(1.W)
-}
-
-class regfile_raddr extends Bundle {
-  val raddr1 = UInt(5.W)
-  val raddr2 = UInt(5.W)
-}
-
-class decoder_7_128 extends Module {
-  val io = IO(new Bundle {
-    val in = Input(UInt(7.W))
-    val out = Output(UInt(128.W))
-  })
-  val tmp = Wire(Vec(128, UInt(1.W)))
-  for (i <- 0 until 128) {
-    when (io.in === i.U) {
-      tmp(i) := 1.U
-    } .otherwise {
-      tmp(i) := 0.U
-    }
-  }
-  io.out := tmp.asUInt
-}
-
-class decoder_3_8 extends Module {
-  val io = IO(new Bundle {
-    val in = Input(UInt(3.W))
-    val out = Output(UInt(8.W))
-  })
-  val tmp = Wire(Vec(8, UInt(1.W)))
-  for (i <- 0 until 8) {
-    when (io.in === i.U) {
-      tmp(i) := 1.U
-    } .otherwise {
-      tmp(i) := 0.U
-    }
-  }
-  io.out := tmp.asUInt
-}
 
 class CPU_IF extends Module {
   val io = IO(new Bundle {
@@ -96,6 +23,9 @@ class CPU_IF extends Module {
 
     val br_valid         = Input(UInt(1.W))
     val br_target        = Input(UInt(32.W))
+
+    val ex_valid         = Input(UInt(1.W))
+    val ex_target        = Input(UInt(32.W))
   })
 
   val fs_valid = Reg(UInt(1.W))
@@ -105,9 +35,23 @@ class CPU_IF extends Module {
   val next_pc = Wire(UInt(32.W))
   val fs_pc_r = RegInit((0xfffffffcL).U(32.W))
 
+  // some handy signals
+  val addr_handshake = Wire(UInt(1.W))
+  val data_handshake = Wire(UInt(1.W))
+
+  val inst_req_valid_r = RegInit(0.U(1.W))
+  val inst_ack_r = RegInit(0.U(1.W))
+  val fs_inst_r = Reg(UInt(32.W))
+
+  addr_handshake := io.inst_req_valid === 1.U && io.inst_req_ack === 1.U
+  data_handshake := io.inst_ack === 1.U && io.inst_valid === 1.U
+  fs_ready_go := data_handshake
+
   io.fs_pc := fs_pc_r
 
-  when (io.br_valid === 1.U) {
+  when (io.ex_valid === 1.U) {
+    next_pc := io.ex_target
+  } .elsewhen (io.br_valid === 1.U) {
     next_pc := io.br_target
   } .otherwise {
     next_pc := fs_pc_r + 4.U;
@@ -115,13 +59,35 @@ class CPU_IF extends Module {
   
   io.inst_addr := next_pc
   
-  when (io.inst_req_valid === 1.U && io.inst_req_ack === 1.U) {
+  when (fs_ready_go === 1.U) {
+    // TODO: check maybe the update should happen when we are able to move to the next stage
     fs_pc_r := next_pc
   }
 
-  io.inst_req_valid := (io.es_allowin === 1.U) && !(io.fs_ex === 1.U) // maybe we should consider some reload signals in the future
 
+  when ((io.es_allowin === 1.U) && !(io.fs_ex === 1.U)) {
+    inst_req_valid_r := 1.U;
+  } .elsewhen (addr_handshake === 1.U) {
+    inst_req_valid_r := 0.U
+  }
 
+  io.inst_req_valid :=  inst_req_valid_r // maybe we should consider some reload signals in the future
+
+  io.inst_ack := inst_ack_r;
+
+  when (addr_handshake === 1.U) {
+    // handshake done
+    inst_ack_r := 1.U
+  } .elsewhen (data_handshake === 1.U) {
+    inst_ack_r := 0.U
+  }
+
+  io.fs_inst := fs_inst_r
+
+  when (data_handshake === 1.U) {
+    // update our inst data
+    fs_inst_r := io.inst_data
+  }
   
   
 }
@@ -243,18 +209,18 @@ class CPU_EX extends Module {
   val U_imm_b = Wire(new U_imm_bundle)
   val J_imm_b = Wire(new J_imm_bundle)
   val inst_imm = Wire(UInt(32.W))
-  val inst_i := Wire(UInt(1.W))
-  val inst_s := Wire(UInt(1.W))
-  val inst_b := Wire(UInt(1.W))
-  val inst_u := Wire(UInt(1.W))
-  val inst_j := Wire(UInt(1.W))
-  val inst_r := Wire(UInt(1.W))
+  val inst_i = Wire(UInt(1.W))
+  val inst_s = Wire(UInt(1.W))
+  val inst_b = Wire(UInt(1.W))
+  val inst_u = Wire(UInt(1.W))
+  val inst_j = Wire(UInt(1.W))
+  val inst_r = Wire(UInt(1.W))
 
   inst_i := inst_jalr | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_addi | inst_slti | inst_sltiu | inst_xori | inst_ori | inst_andi | inst_fence_i
   inst_s := inst_sb | inst_sh | inst_sw
   inst_b := inst_beq | inst_bne | inst_blt | inst_bge | inst_bltu | inst_bgeu
-  inst_u := inst_lui | inst_auipc | 
-  inst_j := inst_jal |
+  inst_u := inst_lui | inst_auipc
+  inst_j := inst_jal
   inst_r := inst_slli | inst_srli | inst_srai | inst_add | inst_sub | inst_sll | inst_slt | inst_sltu | inst_xor | inst_srl | inst_sra | inst_or | inst_and
 
   when (inst_i === 1.U) {
@@ -277,11 +243,11 @@ class CPU_EX extends Module {
   rs1 := es_instr(19, 15)
   rs2 := es_instr(24, 20)
   rd := es_instr(11, 7)
-  I_imm := I_imm_b.asSInt
-  S_imm := S_imm_b.asSInt
-  B_imm := B_imm_b.asSInt
+  I_imm := (I_imm_b.asUInt).asSInt()
+  S_imm := (S_imm_b.asUInt).asSInt()
+  B_imm := (B_imm_b.asUInt).asUInt()
   U_imm := U_imm_b.asUInt
-  J_imm := J_imm_b.asSInt
+  J_imm := (J_imm_b.asUInt).asSInt()
 
   I_imm_b.inst_31 := es_instr(31)
   I_imm_b.inst_30_25 := es_instr(30, 25)
@@ -299,12 +265,12 @@ class CPU_EX extends Module {
   B_imm_b.inst_11_8 := es_instr(11, 8)
   B_imm_b.zero := 0.U
 
-  U_imm_b.inst31 := es_instr(31)
+  U_imm_b.inst_31 := es_instr(31)
   U_imm_b.inst_30_20 := es_instr(30, 20)
-  U_imm_b.instr_19_12 := es_instr(19, 12)
+  U_imm_b.inst_19_12 := es_instr(19, 12)
   U_imm_b.zero := 0.U
 
-  J_imm_b.inst31 := es_instr(31)
+  J_imm_b.inst_31 := es_instr(31)
   J_imm_b.inst_19_12 := es_instr(19, 12)
   J_imm_b.inst_20 := es_instr(20)
   J_imm_b.inst_30_25 := es_instr(30, 25)
@@ -313,9 +279,9 @@ class CPU_EX extends Module {
 
 
 
-  val opcode_decoder = Module(new decoder_7_128)
-  val funct7_decoder = Module(new decoder_7_128)
-  val funct3_decoder = Module(new decoder_3_8)
+  val opcode_decoder: decoder_7_128 = Module(new decoder_7_128)
+  val funct7_decoder: decoder_7_128 = Module(new decoder_7_128)
+  val funct3_decoder: decoder_3_8 = Module(new decoder_3_8)
 
   opcode_decoder.io.in := opcode
   opcode_d := opcode_decoder.io.out
@@ -404,6 +370,7 @@ class CPU_EX extends Module {
   val es_src1_rs1 = Wire(UInt(1.W))
   val es_src1_imm = Wire(UInt(1.W))
   val es_src2_rs2 = Wire(UInt(1.W))
+  val es_src2_rs2_self = Wire(UInt(1.W))
   val es_src2_pc = Wire(UInt(1.W))
   val es_src2_imm = Wire(UInt(1.W))
   val es_alu_op_add = Wire(UInt(1.W))
@@ -523,13 +490,15 @@ class CPU_EX extends Module {
   
   // note that load instructions may only write when load data is returned
   when (es_load === 1.U) {
-    reg_wen := 
+    // reg_wen :=
   } .otherwise {
     reg_wen := gr_we
   }
 
-  gr_we := inst_lui | inst_auipc | inst_jal | inst_jalr | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_addi | inst_slti | inst_sltiu | inst_xori | inst_ori | inst_andi | inst_slli | inst_srli | inst_srai | inst_add | inst_sub | inst_sll | inst_slt | inst_sltu | inst_xor | inst_srl | inst_sra | inst_or | inst_and
-  
+  gr_we := inst_lui | inst_auipc | inst_jal | inst_jalr | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_addi |
+    inst_slti | inst_sltiu | inst_xori | inst_ori | inst_andi | inst_slli | inst_srli | inst_srai | inst_add |
+    inst_sub | inst_sll | inst_slt | inst_sltu | inst_xor | inst_srl | inst_sra | inst_or | inst_and | inst_csrrc |
+    inst_csrrci | inst_csrrs | inst_csrrsi | inst_csrrw | inst_csrrwi
 
   // wdata related signals
   val reg_wdata_alu = Wire(UInt(1.W))
@@ -537,9 +506,13 @@ class CPU_EX extends Module {
   val reg_wdata_csr = Wire(UInt(1.W))
 
   // currently no write from csr
-  reg_wdata_alu :=
+  reg_wdata_alu := inst_lui | inst_auipc | inst_jal | inst_jalr | inst_addi | inst_slti | inst_sltiu | inst_xori |
+    inst_ori | inst_andi | inst_slli | inst_srli | inst_srai | inst_add | inst_sub | inst_sll | inst_slt | inst_sltu |
+    inst_xor | inst_srl | inst_sra | inst_or | inst_and
 
   reg_wdata_mem := inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu
+
+  reg_wdata_csr := inst_csrrc | inst_csrrci | inst_csrrs | inst_csrrsi | inst_csrrw | inst_csrrwi
 
 
 }
