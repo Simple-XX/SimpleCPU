@@ -31,7 +31,6 @@ class CPU_Core extends Module {
         val reg_wdata        = Output(UInt(32.W))
         val reg_waddr        = Output(UInt(5.W))
     })
-    // TODO: add pipeline here
     val IF_Stage = Module(new CPU_IF)
     io.inst_addr := IF_Stage.io.inst_addr
     io.inst_req_valid := IF_Stage.io.inst_req_valid

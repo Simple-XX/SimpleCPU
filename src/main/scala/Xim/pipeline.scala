@@ -16,6 +16,7 @@ class CPU_IF extends Module {
         
         val es_allowin       = Input(UInt(1.W))
         val inst_reload      = Input(UInt(1.W))
+        // maybe we do not need to deal with reload in this pipeline
         val fs_to_es_valid   = Output(UInt(1.W))
         val fs_pc            = Output(UInt(32.W))
         val fs_inst          = Output(UInt(32.W))
@@ -58,6 +59,7 @@ class CPU_IF extends Module {
     
     addr_handshake := io.inst_req_valid === 1.U && io.inst_req_ack === 1.U
     data_handshake := io.inst_ack === 1.U && io.inst_valid === 1.U
+    printf(p"io.inst_valid = ${io.inst_valid} fs_pc = ${io.fs_pc}\n")
     fs_ready_go := data_handshake
     
     io.fs_pc := fs_pc_r
@@ -114,7 +116,8 @@ class CPU_IF extends Module {
     }
     
     
-    printf("inst fetched = %x data_handshake = %d\n",fs_inst_r, data_handshake)
+    printf("inst fetched in IF = %x data_handshake = %d " +
+      "branch_valid = %d branch target = %x\n",io.inst_data, data_handshake, io.br_valid, io.br_target)
     
     
     
@@ -155,7 +158,7 @@ class CPU_EX extends Module {
         val es_reg_wdata     = Output(UInt(32.W))
     })
     
-    
+    printf(p"reg_wen = ${io.es_reg_wen} reg_waddr = ${io.es_reg_waddr} reg_wdata = ${io.es_reg_wdata}\n")
     
     val es_valid = RegInit(0.U(1.W))
     // es_allowin as Output
@@ -163,12 +166,29 @@ class CPU_EX extends Module {
     val es_pc = Reg(UInt(32.W))
     val es_instr = Reg(UInt(32.W))
     
+    // branch related
+    val rs1_equal_rs2 = Wire(UInt(1.W))
+    val rs1_less_rs2_unsigned = Wire(UInt(1.W))
+    val rs1_less_rs2_signed = Wire(UInt(1.W))
+    val br_taken = Wire(UInt(1.W))
+    val inst_reload = Wire(UInt(1.W))
+    val beq_taken = Wire(UInt(1.W))
+    val bne_taken = Wire(UInt(1.W))
+    val blt_taken = Wire(UInt(1.W))
+    val bge_taken = Wire(UInt(1.W))
+    val bltu_taken = Wire(UInt(1.W))
+    val bgeu_taken = Wire(UInt(1.W))
+    val inst_reload_r = RegInit(0.U(1.W))
+    
     
     
     // decode related
     val es_load = Wire(UInt(1.W))
     val es_store = Wire(UInt(1.W))
     val es_branch = Wire(UInt(1.W))
+    val es_load_r = RegInit(0.U(1.W))
+    val es_store_r = RegInit(1.U(1.W))
+    // branch and jump is finished in a cycle
     
     val inst_lui = Wire(UInt(1.W))
     val inst_auipc = Wire(UInt(1.W))
@@ -277,11 +297,30 @@ class CPU_EX extends Module {
         inst_imm := 0.U
     }
     printf(p"io.es_allowin = ${io.es_allowin} io.fs_to_es_valid = ${io.fs_to_es_valid}\n")
-    printf(p"es_instr = ${es_instr}\n")
-    when (io.es_allowin === 1.U && io.fs_to_es_valid === 1.U) {
+    printf("es_instr = %x\n", es_instr)
+    
+    val es_new_instr = Wire(UInt(1.W))
+    
+    es_new_instr := io.es_allowin === 1.U && io.fs_to_es_valid === 1.U
+    
+    when (es_new_instr === 1.U && inst_reload === 1.U) {
+        es_instr := 0x00000033.U // provide a nop instruction (add zero, zero, zero)
+    } .elsewhen (es_new_instr === 1.U) {
         es_instr := io.fs_inst
+    }
+    
+    when (inst_reload === 1.U) {
+        es_valid := 0.U
+    } .elsewhen (io.es_allowin === 1.U) {
+        es_valid := io.fs_to_es_valid
+        // TODO: check exception conditions here
+    }
+    
+    when (es_new_instr === 1.U) {
         es_pc := io.fs_pc
     }
+    
+    printf(p"es_pc = ${es_pc}\n")
     
     opcode := es_instr(6, 0)
     funct7 := es_instr(31, 25)
@@ -529,11 +568,50 @@ class CPU_EX extends Module {
     
     io.data_addr := alu_result
     
+    // Data load and store related
+    es_load := inst_lw | inst_lh | inst_lhu | inst_lb | inst_lbu
+    es_store := inst_sw | inst_sh | inst_sb
+    es_branch := inst_b | inst_jal | inst_jalr // jump instruction is dealed with the same schema
     
-    /*
-    reg_raddr.raddr1 := reg_raddr_1
-    reg_raddr.raddr2 := reg_raddr_2
-     */
+    when (es_new_instr === 1.U) {
+        es_load_r := es_load
+    }
+    
+    when (es_new_instr === 1.U) {
+        es_store_r := es_store
+    }
+    
+    // branch related
+    
+    rs1_equal_rs2 := reg_rdata_1 === reg_rdata_2
+    rs1_less_rs2_unsigned := reg_rdata_1.asUInt() < reg_rdata_2.asUInt()
+    rs1_less_rs2_signed := reg_rdata_1.asSInt() < reg_rdata_2.asSInt()
+    
+    beq_taken := inst_beq === 1.U && rs1_equal_rs2 === 1.U
+    bne_taken := inst_bne === 1.U &&  rs1_equal_rs2 === 0.U
+    blt_taken := inst_blt === 1.U && rs1_less_rs2_signed === 1.U
+    bge_taken := inst_bge === 1.U && rs1_less_rs2_signed === 0.U
+    bltu_taken := inst_bltu === 1.U && rs1_less_rs2_unsigned === 1.U
+    bgeu_taken := inst_bgeu === 1.U && rs1_less_rs2_unsigned === 0.U
+    
+    br_taken := beq_taken | bne_taken | blt_taken | bge_taken | bltu_taken | bgeu_taken
+    
+    inst_reload := br_taken | inst_jal | inst_jalr
+    io.br_valid := inst_reload
+    
+    when (br_taken === 1.U || inst_jal === 1.U | inst_jalr === 1.U) {
+        io.br_target := alu_result
+        printf(p"Branch taken, target = ${io.br_target}")
+    } .otherwise {
+        io.br_target := 0.U
+    }
+    
+    when (es_new_instr === 1.U) {
+        inst_reload_r := inst_reload // only as a debug method
+        printf(p"New instr comes, reload: ${inst_reload_r}\n")
+    }
+    
+    io.inst_reload := inst_reload_r
     
     // reg file connection
     reg_file.io.wen := reg_wen
@@ -549,6 +627,8 @@ class CPU_EX extends Module {
     // note that load instructions may only write when load data is returned
     when (es_load === 1.U) {
         // TODO: revise proper condition here
+        // The current condition indicates that if our instruction is not a load, it should go directly into the write
+        // back stage, which finishes in a single cycle
         reg_wen := 1.U
     } .otherwise {
         reg_wen := gr_we
@@ -589,15 +669,15 @@ class CPU_EX extends Module {
     /*
     * Currently not implemented signals
     * */
-    io.inst_reload := 0.U
+    // io.inst_reload := 0.U
     io.ex_valid := 0.U
     io.data_wstrb := 0xf.U
-    es_store := 0.U
-    es_load := 0.U
-    io.br_target := 0.U
-    es_branch := 0.U
+    // es_store := 0.U
+    // es_load := 0.U
+    //io.br_target := 0.U
+    // es_branch := 0.U
     io.data_write_data := 0.U
-    io.br_valid := 0.U
+    //io.br_valid := 0.U
     io.data_write := 0.U
     io.data_read := 0.U
     io.ex_target := 0.U

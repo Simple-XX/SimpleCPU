@@ -3,6 +3,11 @@ package Xim
 // Note that this file stores some reference code which is no longer used in actual code
 
 /*
+reg_raddr.raddr1 := reg_raddr_1
+reg_raddr.raddr2 := reg_raddr_2
+ */
+
+/*
     csr_mstatus.SD := 0.U // hardwired to zero
     csr_mstatus.reserved := 0.U // hardwired to zero
     csr_mstatus.TSR := 0.U // hardwired to zero
