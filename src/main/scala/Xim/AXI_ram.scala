@@ -52,7 +52,7 @@ class AXI_ram extends BlackBox with HasBlackBoxInline {
     })
     
     setInline("AXIRAM.v",
-    s"""
+        s"""
     module AXI_ram #
 (
     // Width of data bus in bits

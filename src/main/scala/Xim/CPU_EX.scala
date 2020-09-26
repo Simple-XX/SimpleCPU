@@ -1,160 +1,40 @@
 package Xim
 
 import chisel3._
-import javafx.scene.input.InputMethodTextRun
-
-
-class CPU_IF extends Module {
-    val io = IO(new Bundle {
-        val inst_addr        = Output(UInt(32.W))
-        val inst_req_valid   = Output(UInt(1.W))
-        val inst_req_ack     = Input(UInt(1.W))
-        
-        val inst_data        = Input(UInt(32.W))
-        val inst_valid       = Input(UInt(1.W))
-        val inst_ack         = Output(UInt(1.W))
-        
-        val es_allowin       = Input(UInt(1.W))
-        val inst_reload      = Input(UInt(1.W))
-        // maybe we do not need to deal with reload in this pipeline
-        val fs_to_es_valid   = Output(UInt(1.W))
-        val fs_pc            = Output(UInt(32.W))
-        val fs_inst          = Output(UInt(32.W))
-        val fs_ex            = Output(UInt(1.W))
-        val fs_excode        = Output(UInt(5.W)) // maybe should be longer?
-        
-        val br_valid         = Input(UInt(1.W))
-        val br_target        = Input(UInt(32.W))
-        
-        val ex_valid         = Input(UInt(1.W))
-        val ex_target        = Input(UInt(32.W))
-        
-    })
-    // Currently not implemented signals
-    io.fs_excode := 0.U
-    io.fs_ex := 0.U
-    
-    // unimplemented end
-    
-    val fs_valid = Reg(UInt(1.W))
-    val fs_allowin = Wire(UInt(1.W))
-    val fs_ready_go = Wire(UInt(1.W))
-    
-    val next_pc = Wire(UInt(32.W))
-    val fs_pc_r = RegInit((0xfffffffcL).U(32.W))
-    
-    // some handy signals
-    val addr_handshake = Wire(UInt(1.W))
-    val data_handshake = Wire(UInt(1.W))
-    val data_handshake_r = RegInit(0.U(1.W))
-    
-    val inst_req_valid_r = RegInit(0.U(1.W))
-    val inst_ack_r = RegInit(0.U(1.W))
-    val fs_inst_r = Reg(UInt(32.W))
-    
-    fs_allowin := 1.U
-    // TODO: check valid condition in the future
-    fs_valid := 1.U
-    io.fs_to_es_valid := fs_valid === 1.U && (data_handshake === 1.U || data_handshake_r === 1.U)
-    
-    addr_handshake := io.inst_req_valid === 1.U && io.inst_req_ack === 1.U
-    data_handshake := io.inst_ack === 1.U && io.inst_valid === 1.U
-    printf(p"io.inst_valid = ${io.inst_valid} fs_pc = ${io.fs_pc}\n")
-    fs_ready_go := data_handshake
-    
-    io.fs_pc := fs_pc_r
-    
-    when (io.ex_valid === 1.U) {
-        next_pc := io.ex_target
-    } .elsewhen (io.br_valid === 1.U) {
-        next_pc := io.br_target
-    } .otherwise {
-        next_pc := fs_pc_r + 4.U;
-    }
-    
-    io.inst_addr := next_pc
-    
-    when (fs_ready_go === 1.U) {
-        // TODO: check maybe the update should happen when we are able to move to the next stage
-        fs_pc_r := next_pc
-    }
-    
-    when (io.ex_valid === 1.U) {
-        data_handshake_r := 0.U
-    } .elsewhen (data_handshake === 1.U && io.es_allowin === 1.U) {
-        data_handshake_r := 0.U
-    } .elsewhen (data_handshake === 1.U && io.es_allowin === 0.U) {
-        data_handshake_r := 1.U
-    }
-    
-    
-    when ((io.es_allowin === 1.U) && !(io.fs_ex === 1.U)) {
-        inst_req_valid_r := 1.U;
-    } .elsewhen (addr_handshake === 1.U) {
-        inst_req_valid_r := 0.U
-    }
-    
-    io.inst_req_valid :=  inst_req_valid_r // maybe we should consider some reload signals in the future
-    
-    /*
-    io.inst_ack := inst_ack_r;
-  
-    when (addr_handshake === 1.U) {
-      // handshake done
-      inst_ack_r := 1.U
-    } .elsewhen (data_handshake === 1.U) {
-      inst_ack_r := 0.U
-    }
-     */
-    io.inst_ack := 1.U // always acknowledge
-    
-    io.fs_inst := fs_inst_r
-    
-    when (data_handshake === 1.U) {
-        // update our inst data
-        fs_inst_r := io.inst_data
-    }
-    
-    printf("inst fetched in IF = %x addr_handshake = %d data_handshake = %d " +
-      "branch_valid = %d branch target = %x\n",io.inst_data, addr_handshake, data_handshake, io.br_valid, io.br_target)
-    
-    
-    
-}
 
 class CPU_EX extends Module {
     val io = IO(new Bundle {
-        val data_addr        = Output(UInt(32.W))
-        val data_write       = Output(UInt(1.W))
-        val data_read        = Output(UInt(1.W))
-        val data_size        = Output(UInt(2.W))
+        val data_addr = Output(UInt(32.W))
+        val data_write = Output(UInt(1.W))
+        val data_read = Output(UInt(1.W))
+        val data_size = Output(UInt(2.W))
         
-        val data_write_data  = Output(UInt(32.W))
+        val data_write_data = Output(UInt(32.W))
         
-        val data_req_ack      = Input(UInt(1.W))
+        val data_req_ack = Input(UInt(1.W))
         
-        val data_read_data   = Input(UInt(32.W))
-        val data_read_valid  = Input(UInt(1.W))
-        val data_data_ack    = Output(UInt(1.W))
+        val data_read_data = Input(UInt(32.W))
+        val data_read_valid = Input(UInt(1.W))
+        val data_data_ack = Output(UInt(1.W))
         
-        val es_allowin       = Output(UInt(1.W))
-        val inst_reload      = Output(UInt(1.W))
+        val es_allowin = Output(UInt(1.W))
+        val inst_reload = Output(UInt(1.W))
         
-        val fs_to_es_valid   = Input(UInt(1.W))
-        val fs_pc            = Input(UInt(32.W))
-        val fs_inst          = Input(UInt(32.W))
-        val fs_ex            = Input(UInt(1.W))
-        val fs_excode        = Input(UInt(5.W))
+        val fs_to_es_valid = Input(UInt(1.W))
+        val fs_pc = Input(UInt(32.W))
+        val fs_inst = Input(UInt(32.W))
+        val fs_ex = Input(UInt(1.W))
+        val fs_excode = Input(UInt(5.W))
         
-        val br_valid         = Output(UInt(1.W))
-        val br_target        = Output(UInt(32.W))
-        val ex_valid         = Output(UInt(1.W))
-        val ex_target        = Output(UInt(32.W))
-    
+        val br_valid = Output(UInt(1.W))
+        val br_target = Output(UInt(32.W))
+        val ex_valid = Output(UInt(1.W))
+        val ex_target = Output(UInt(32.W))
+        
         // for debug
-        val es_reg_wen       = Output(UInt(1.W))
-        val es_reg_waddr     = Output(UInt(5.W))
-        val es_reg_wdata     = Output(UInt(32.W))
+        val es_reg_wen = Output(UInt(1.W))
+        val es_reg_waddr = Output(UInt(5.W))
+        val es_reg_wdata = Output(UInt(32.W))
     })
     
     printf(p"reg_wen = ${io.es_reg_wen} reg_waddr = ${io.es_reg_waddr} reg_wdata = ${io.es_reg_wdata}\n")
@@ -178,7 +58,6 @@ class CPU_EX extends Module {
     val bltu_taken = Wire(UInt(1.W))
     val bgeu_taken = Wire(UInt(1.W))
     val inst_reload_r = RegInit(0.U(1.W))
-    
     
     
     // decode related
@@ -242,9 +121,9 @@ class CPU_EX extends Module {
     val inst_fence_i = Wire(UInt(1.W))
     val inst_reserved = Wire(UInt(1.W)) // reserved instruction
     
-    when (es_load === 1.U || es_store === 1.U) {
+    when(es_load === 1.U || es_store === 1.U) {
         es_ready_go := io.data_data_ack
-    } .otherwise {
+    }.otherwise {
         es_ready_go := 1.U
     }
     
@@ -286,17 +165,17 @@ class CPU_EX extends Module {
     inst_j := inst_jal
     inst_r := inst_slli | inst_srli | inst_srai | inst_add | inst_sub | inst_sll | inst_slt | inst_sltu | inst_xor | inst_srl | inst_sra | inst_or | inst_and
     
-    when (inst_i === 1.U) {
+    when(inst_i === 1.U) {
         inst_imm := I_imm.asUInt
-    } .elsewhen (inst_s === 1.U) {
+    }.elsewhen(inst_s === 1.U) {
         inst_imm := S_imm.asUInt
-    } .elsewhen (inst_b === 1.U) {
+    }.elsewhen(inst_b === 1.U) {
         inst_imm := B_imm.asUInt
-    } .elsewhen (inst_u === 1.U) {
+    }.elsewhen(inst_u === 1.U) {
         inst_imm := U_imm
-    } .elsewhen (inst_j === 1.U) {
+    }.elsewhen(inst_j === 1.U) {
         inst_imm := J_imm.asUInt
-    } .otherwise {
+    }.otherwise {
         inst_imm := 0.U
     }
     printf(p"io.es_allowin = ${io.es_allowin} io.fs_to_es_valid = ${io.fs_to_es_valid}\n")
@@ -306,20 +185,20 @@ class CPU_EX extends Module {
     
     es_new_instr := io.es_allowin === 1.U && io.fs_to_es_valid === 1.U
     
-    when (es_new_instr === 1.U && inst_reload === 1.U) {
+    when(es_new_instr === 1.U && inst_reload === 1.U) {
         es_instr := 0x00000033.U // provide a nop instruction (add zero, zero, zero)
-    } .elsewhen (es_new_instr === 1.U) {
+    }.elsewhen(es_new_instr === 1.U) {
         es_instr := io.fs_inst
     }
     
-    when (inst_reload === 1.U) {
+    when(inst_reload === 1.U) {
         es_valid := 0.U
-    } .elsewhen (io.es_allowin === 1.U) {
+    }.elsewhen(io.es_allowin === 1.U) {
         es_valid := io.fs_to_es_valid
         // TODO: check exception conditions here
     }
     
-    when (es_new_instr === 1.U) {
+    when(es_new_instr === 1.U) {
         es_pc := io.fs_pc
     }
     
@@ -364,7 +243,6 @@ class CPU_EX extends Module {
     J_imm_b.inst_30_25 := es_instr(30, 25)
     J_imm_b.inst_24_21 := es_instr(24, 21)
     J_imm_b.zero := 0.U
-    
     
     
     val opcode_decoder: decoder_7_128 = Module(new decoder_7_128)
@@ -516,52 +394,51 @@ class CPU_EX extends Module {
     es_alu_op_lui := inst_lui
     
     
-    
-    when (es_src1_rs1 === 1.U) {
+    when(es_src1_rs1 === 1.U) {
         es_alu.io.alu_src1 := reg_rdata_1
-    } .elsewhen (es_src1_imm === 1.U) {
+    }.elsewhen(es_src1_imm === 1.U) {
         es_alu.io.alu_src1 := inst_imm
-    } .otherwise {
+    }.otherwise {
         es_alu.io.alu_src1 := 0.U;
     }
     
-    when (es_src2_imm === 1.U) {
+    when(es_src2_imm === 1.U) {
         es_alu.io.alu_src2 := inst_imm
-    } .elsewhen (es_src2_pc === 1.U) {
+    }.elsewhen(es_src2_pc === 1.U) {
         es_alu.io.alu_src2 := es_pc
-    } .elsewhen (es_src2_rs2 === 1.U) {
+    }.elsewhen(es_src2_rs2 === 1.U) {
         es_alu.io.alu_src2 := reg_rdata_2
-    } .elsewhen (es_src2_rs2_self === 1.U) {
+    }.elsewhen(es_src2_rs2_self === 1.U) {
         es_alu.io.alu_src2 := rs2
-    } .otherwise {
+    }.otherwise {
         es_alu.io.alu_src2 := 0.U
     }
     
-    when (es_alu_op_add === 1.U) {
+    when(es_alu_op_add === 1.U) {
         es_alu.io.alu_op := 1.U
-    } .elsewhen (es_alu_op_sub === 1.U) {
+    }.elsewhen(es_alu_op_sub === 1.U) {
         es_alu.io.alu_op := 2.U
-    } .elsewhen (es_alu_op_slt === 1.U) {
+    }.elsewhen(es_alu_op_slt === 1.U) {
         es_alu.io.alu_op := 4.U
-    } .elsewhen (es_alu_op_sltu === 1.U) {
+    }.elsewhen(es_alu_op_sltu === 1.U) {
         es_alu.io.alu_op := 8.U
-    } .elsewhen (es_alu_op_and === 1.U) {
+    }.elsewhen(es_alu_op_and === 1.U) {
         es_alu.io.alu_op := 16.U
-    } .elsewhen (es_alu_op_nor === 1.U) {
+    }.elsewhen(es_alu_op_nor === 1.U) {
         es_alu.io.alu_op := 32.U
-    } .elsewhen (es_alu_op_or === 1.U) {
+    }.elsewhen(es_alu_op_or === 1.U) {
         es_alu.io.alu_op := 64.U
-    } .elsewhen (es_alu_op_xor === 1.U) {
+    }.elsewhen(es_alu_op_xor === 1.U) {
         es_alu.io.alu_op := 128.U
-    } .elsewhen (es_alu_op_sll === 1.U) {
+    }.elsewhen(es_alu_op_sll === 1.U) {
         es_alu.io.alu_op := 256.U
-    } .elsewhen (es_alu_op_srl === 1.U) {
+    }.elsewhen(es_alu_op_srl === 1.U) {
         es_alu.io.alu_op := 512.U
-    } .elsewhen (es_alu_op_sra === 1.U) {
+    }.elsewhen(es_alu_op_sra === 1.U) {
         es_alu.io.alu_op := 1024.U
-    } .elsewhen (es_alu_op_lui === 1.U) {
+    }.elsewhen(es_alu_op_lui === 1.U) {
         es_alu.io.alu_op := 2048.U
-    } .otherwise {
+    }.otherwise {
         es_alu.io.alu_op := 1.U
         // we do not use ALU in this case
     }
@@ -577,14 +454,14 @@ class CPU_EX extends Module {
     es_branch := inst_b | inst_jal | inst_jalr // jump instruction is dealed with the same schema
     
     // Maybe we do not need this flag
-    when (es_new_instr === 1.U) {
+    when(es_new_instr === 1.U) {
         es_load_r := es_load
     }
     
-    when (es_new_instr === 1.U) {
+    when(es_new_instr === 1.U) {
         es_store_r := es_store
     }
-
+    
     // for store instructions, always from rs2
     io.data_write_data := reg_rdata_2
     
@@ -596,7 +473,7 @@ class CPU_EX extends Module {
     rs1_less_rs2_signed := reg_rdata_1.asSInt() < reg_rdata_2.asSInt()
     
     beq_taken := inst_beq === 1.U && rs1_equal_rs2 === 1.U
-    bne_taken := inst_bne === 1.U &&  rs1_equal_rs2 === 0.U
+    bne_taken := inst_bne === 1.U && rs1_equal_rs2 === 0.U
     blt_taken := inst_blt === 1.U && rs1_less_rs2_signed === 1.U
     bge_taken := inst_bge === 1.U && rs1_less_rs2_signed === 0.U
     bltu_taken := inst_bltu === 1.U && rs1_less_rs2_unsigned === 1.U
@@ -607,14 +484,14 @@ class CPU_EX extends Module {
     inst_reload := br_taken | inst_jal | inst_jalr
     io.br_valid := inst_reload
     
-    when (br_taken === 1.U || inst_jal === 1.U | inst_jalr === 1.U) {
+    when(br_taken === 1.U || inst_jal === 1.U | inst_jalr === 1.U) {
         io.br_target := alu_result
         printf(p"Branch taken, target = ${io.br_target}")
-    } .otherwise {
+    }.otherwise {
         io.br_target := 0.U
     }
     
-    when (es_new_instr === 1.U) {
+    when(es_new_instr === 1.U) {
         inst_reload_r := inst_reload // only as a debug method
         printf(p"New instr comes, reload: ${inst_reload_r}\n")
     }
@@ -633,12 +510,12 @@ class CPU_EX extends Module {
     reg_waddr := rd
     
     // note that load instructions may only write when load data is returned
-    when (es_load === 1.U && es_data_handshake === 1.U) {
+    when(es_load === 1.U && es_data_handshake === 1.U) {
         // TODO: revise proper condition here
         // The current condition indicates that if our instruction is not a load, it should go directly into the write
         // back stage, which finishes in a single cycle
         reg_wen := 1.U
-    } .otherwise {
+    }.otherwise {
         reg_wen := gr_we
     }
     
@@ -661,15 +538,15 @@ class CPU_EX extends Module {
     
     reg_wdata_csr := inst_csrrc | inst_csrrci | inst_csrrs | inst_csrrsi | inst_csrrw | inst_csrrwi
     
-    when (reg_wdata_alu === 1.U) {
+    when(reg_wdata_alu === 1.U) {
         reg_wdata := alu_result
-    } .elsewhen (reg_wdata_mem === 1.U) {
+    }.elsewhen(reg_wdata_mem === 1.U) {
         // TODO: check the proper condition here: stored data rather than wired ones
         reg_wdata := io.data_read_data
-    } .elsewhen (reg_wdata_csr === 1.U) {
+    }.elsewhen(reg_wdata_csr === 1.U) {
         // TODO: check the proper condition here after adding csrs
         reg_wdata := 0.U
-    } .otherwise {
+    }.otherwise {
         reg_wdata := 0.U
     }
     
@@ -693,10 +570,6 @@ class CPU_EX extends Module {
     es_data_handshake := 0.U
     es_addr_handshake := 0.U
     io.data_data_ack := 0.U
-}
-
-object CPU_IF extends App {
-    chisel3.Driver.execute(args, () => new CPU_IF)
 }
 
 object CPU_EX extends App {
