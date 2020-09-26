@@ -75,7 +75,7 @@ class SoC extends Module {
     
     CPU_Bridge.io.data_req := Core.io.data_write | Core.io.data_read
     CPU_Bridge.io.data_wr := Core.io.data_write
-    CPU_Bridge.io.data_size := 2.U // TODO: adjust this in the Core
+    CPU_Bridge.io.data_size := Core.io.data_size
     CPU_Bridge.io.data_addr := Core.io.data_addr
     CPU_Bridge.io.data_wdata := Core.io.data_write_data
     Core.io.data_read_data := CPU_Bridge.io.data_rdata

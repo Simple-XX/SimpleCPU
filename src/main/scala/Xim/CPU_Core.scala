@@ -15,10 +15,10 @@ class CPU_Core extends Module {
         
         val data_addr        = Output(UInt(32.W))
         val data_write       = Output(UInt(1.W))
-        val data_read         = Output(UInt(1.W))
+        val data_read        = Output(UInt(1.W))
+        val data_size        = Output(UInt(2.W))
         
         val data_write_data  = Output(UInt(32.W))
-        val data_wstrb       = Output(UInt(4.W))
         
         val data_req_ack      = Input(UInt(1.W))
         
@@ -44,8 +44,8 @@ class CPU_Core extends Module {
     io.data_addr := EX_Stage.io.data_addr
     io.data_write := EX_Stage.io.data_write
     io.data_read := EX_Stage.io.data_read
+    io.data_size := EX_Stage.io.data_size
     io.data_write_data := EX_Stage.io.data_write_data
-    io.data_wstrb := EX_Stage.io.data_wstrb
     EX_Stage.io.data_req_ack := io.data_req_ack
     EX_Stage.io.data_read_data := io.data_read_data
     EX_Stage.io.data_read_valid := io.data_read_valid

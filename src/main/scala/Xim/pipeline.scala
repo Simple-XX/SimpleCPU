@@ -126,10 +126,10 @@ class CPU_EX extends Module {
     val io = IO(new Bundle {
         val data_addr        = Output(UInt(32.W))
         val data_write       = Output(UInt(1.W))
-        val data_read         = Output(UInt(1.W))
+        val data_read        = Output(UInt(1.W))
+        val data_size        = Output(UInt(2.W))
         
         val data_write_data  = Output(UInt(32.W))
-        val data_wstrb       = Output(UInt(4.W))
         
         val data_req_ack      = Input(UInt(1.W))
         
@@ -152,7 +152,7 @@ class CPU_EX extends Module {
         val ex_target        = Output(UInt(32.W))
     
         // for debug
-        val es_reg_wen           = Output(UInt(1.W))
+        val es_reg_wen       = Output(UInt(1.W))
         val es_reg_waddr     = Output(UInt(5.W))
         val es_reg_wdata     = Output(UInt(32.W))
     })
@@ -584,15 +584,7 @@ class CPU_EX extends Module {
     when (es_new_instr === 1.U) {
         es_store_r := es_store
     }
-    when (inst_sw === 1.U) {
-        io.data_wstrb := 0xf.U
-    } .elsewhen (inst_sh === 1.U) {
-        io.data_wstrb := 0x3.U
-    } .elsewhen (inst_sb === 1.U) {
-        io.data_wstrb := 0x1.U
-    } .otherwise {
-        io.data_wstrb := 0.U;
-    }
+
     // for store instructions, always from rs2
     io.data_write_data := reg_rdata_2
     
@@ -694,6 +686,7 @@ class CPU_EX extends Module {
     // es_branch := 0.U
     // io.data_write_data := 0.U
     //io.br_valid := 0.U
+    io.data_size := 2.U
     io.data_write := 0.U
     io.data_read := 0.U
     io.ex_target := 0.U

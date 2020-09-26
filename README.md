@@ -29,9 +29,19 @@ EX级进行指令译码执行访存写回，若为访存指令则发出访存请
 
 2020.9.24 分支指令（beq zero, zero, 0x10）
 
+2020.9.26 AXI RAM接入，构建简易SoC
+
 ### TODO
 
 1. load and store (the instructions that need to stay multiple cycles in ES)
 2. CSR integration (instructions included)
 3. ex related
 4. test framework
+
+### Notes
+
+实现测试框架的一点思路：
+
+程序正常执行甚至发生异常时，几乎不会出现前后两条指令PC值一致的情形，如此一来判定指令前进变得异常简单，只需观察周期前后PC值是否有所改变。
+
+可以为原来的多周期处理器编写类似的verilog testbench导出trace与本处理器比较。

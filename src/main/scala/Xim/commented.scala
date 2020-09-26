@@ -3,6 +3,18 @@ package Xim
 // Note that this file stores some reference code which is no longer used in actual code
 
 /*
+*     when (inst_sw === 1.U) {
+        io.data_wstrb := 0xf.U
+    } .elsewhen (inst_sh === 1.U) {
+        io.data_wstrb := 0x3.U
+    } .elsewhen (inst_sb === 1.U) {
+        io.data_wstrb := 0x1.U
+    } .otherwise {
+        io.data_wstrb := 0.U;
+    }
+* */
+
+/*
 reg_raddr.raddr1 := reg_raddr_1
 reg_raddr.raddr2 := reg_raddr_2
  */
