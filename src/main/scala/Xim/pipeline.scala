@@ -115,9 +115,8 @@ class CPU_IF extends Module {
         fs_inst_r := io.inst_data
     }
     
-    
-    printf("inst fetched in IF = %x data_handshake = %d " +
-      "branch_valid = %d branch target = %x\n",io.inst_data, data_handshake, io.br_valid, io.br_target)
+    printf("inst fetched in IF = %x addr_handshake = %d data_handshake = %d " +
+      "branch_valid = %d branch target = %x\n",io.inst_data, addr_handshake, data_handshake, io.br_valid, io.br_target)
     
     
     
@@ -188,6 +187,10 @@ class CPU_EX extends Module {
     val es_branch = Wire(UInt(1.W))
     val es_load_r = RegInit(0.U(1.W))
     val es_store_r = RegInit(1.U(1.W))
+    val es_data_handshake = Wire(UInt(1.W))
+    val es_addr_handshake = Wire(UInt(1.W))
+    // we do not need a data_handshake_r here because load and store will always end right after the handshake
+    
     // branch and jump is finished in a cycle
     
     val inst_lui = Wire(UInt(1.W))
@@ -573,6 +576,7 @@ class CPU_EX extends Module {
     es_store := inst_sw | inst_sh | inst_sb
     es_branch := inst_b | inst_jal | inst_jalr // jump instruction is dealed with the same schema
     
+    // Maybe we do not need this flag
     when (es_new_instr === 1.U) {
         es_load_r := es_load
     }
@@ -580,6 +584,18 @@ class CPU_EX extends Module {
     when (es_new_instr === 1.U) {
         es_store_r := es_store
     }
+    when (inst_sw === 1.U) {
+        io.data_wstrb := 0xf.U
+    } .elsewhen (inst_sh === 1.U) {
+        io.data_wstrb := 0x3.U
+    } .elsewhen (inst_sb === 1.U) {
+        io.data_wstrb := 0x1.U
+    } .otherwise {
+        io.data_wstrb := 0.U;
+    }
+    // for store instructions, always from rs2
+    io.data_write_data := reg_rdata_2
+    
     
     // branch related
     
@@ -625,7 +641,7 @@ class CPU_EX extends Module {
     reg_waddr := rd
     
     // note that load instructions may only write when load data is returned
-    when (es_load === 1.U) {
+    when (es_load === 1.U && es_data_handshake === 1.U) {
         // TODO: revise proper condition here
         // The current condition indicates that if our instruction is not a load, it should go directly into the write
         // back stage, which finishes in a single cycle
@@ -671,17 +687,18 @@ class CPU_EX extends Module {
     * */
     // io.inst_reload := 0.U
     io.ex_valid := 0.U
-    io.data_wstrb := 0xf.U
+    // io.data_wstrb := 0xf.U
     // es_store := 0.U
     // es_load := 0.U
-    //io.br_target := 0.U
+    // io.br_target := 0.U
     // es_branch := 0.U
-    io.data_write_data := 0.U
+    // io.data_write_data := 0.U
     //io.br_valid := 0.U
     io.data_write := 0.U
     io.data_read := 0.U
     io.ex_target := 0.U
-    
+    es_data_handshake := 0.U
+    es_addr_handshake := 0.U
     io.data_data_ack := 0.U
 }
 

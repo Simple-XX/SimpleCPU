@@ -30,6 +30,7 @@ class CPU_Core extends Module {
         val reg_wen          = Output(UInt(1.W))
         val reg_wdata        = Output(UInt(32.W))
         val reg_waddr        = Output(UInt(5.W))
+        // TODO: add size information for AXI-like interface
     })
     val IF_Stage = Module(new CPU_IF)
     io.inst_addr := IF_Stage.io.inst_addr
