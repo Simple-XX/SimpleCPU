@@ -68,6 +68,8 @@ class CPU_EX extends Module {
     val es_store_r = RegInit(1.U(1.W))
     val es_data_handshake = Wire(UInt(1.W))
     val es_addr_handshake = Wire(UInt(1.W))
+    val es_write_r = RegInit(0.U(1.W))
+    val es_read_r = RegInit(0.U(1.W))
     // we do not need a data_handshake_r here because load and store will always end right after the handshake
     
     // branch and jump is finished in a cycle
@@ -452,6 +454,32 @@ class CPU_EX extends Module {
     es_load := inst_lw | inst_lh | inst_lhu | inst_lb | inst_lbu
     es_store := inst_sw | inst_sh | inst_sb
     es_branch := inst_b | inst_jal | inst_jalr // jump instruction is dealed with the same schema
+    io.data_write := es_write_r
+    io.data_read := es_read_r
+    es_data_handshake := io.data_read_valid === 1.U && io.data_data_ack === 1.U
+    es_addr_handshake := (io.data_write | io.data_read) === 1.U && io.data_req_ack === 1.U
+    
+    when (inst_sb === 1.U || inst_lb === 1.U || inst_lbu === 1.U) {
+        io.data_size := 0.U
+    } .elsewhen (inst_sh === 1.U || inst_lh === 1.U || inst_lhu === 1.U) {
+        io.data_size := 1.U
+    } .elsewhen (inst_sw === 1.U || inst_lw === 1.U) {
+        io.data_size := 2.U
+    } .otherwise {
+        io.data_size := 0.U
+    }
+    
+    when (es_load === 1.U) {
+        es_read_r := 1.U
+    } .elsewhen (es_addr_handshake === 1.U) {
+        es_read_r := 0.U
+    }
+    
+    when (es_store === 1.U) {
+        es_store_r := 1.U
+    } .elsewhen (es_addr_handshake === 1.U) {
+        es_store_r := 0.U
+    }
     
     // Maybe we do not need this flag
     when(es_new_instr === 1.U) {
@@ -464,6 +492,9 @@ class CPU_EX extends Module {
     
     // for store instructions, always from rs2
     io.data_write_data := reg_rdata_2
+    
+    // dummy signal for now
+    io.data_data_ack := 1.U
     
     
     // branch related
@@ -512,11 +543,14 @@ class CPU_EX extends Module {
     // note that load instructions may only write when load data is returned
     when(es_load === 1.U && es_data_handshake === 1.U) {
         // TODO: revise proper condition here
+        // Problem here: the reg will continue to write even after the first written
         // The current condition indicates that if our instruction is not a load, it should go directly into the write
         // back stage, which finishes in a single cycle
         reg_wen := 1.U
-    }.otherwise {
+    } .elsewhen (es_new_instr === 1.U) {
         reg_wen := gr_we
+    } .otherwise {
+        reg_wen := 0.U
     }
     
     gr_we := inst_lui | inst_auipc | inst_jal | inst_jalr | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_addi |
@@ -563,13 +597,10 @@ class CPU_EX extends Module {
     // es_branch := 0.U
     // io.data_write_data := 0.U
     //io.br_valid := 0.U
-    io.data_size := 2.U
-    io.data_write := 0.U
-    io.data_read := 0.U
+    
     io.ex_target := 0.U
-    es_data_handshake := 0.U
-    es_addr_handshake := 0.U
-    io.data_data_ack := 0.U
+    
+    
 }
 
 object CPU_EX extends App {
