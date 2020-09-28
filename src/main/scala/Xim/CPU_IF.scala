@@ -35,7 +35,7 @@ class CPU_IF extends Module {
     
     // unimplemented end
     
-    val fs_valid = Reg(UInt(1.W))
+    val fs_valid = RegInit(0.U(1.W))
     val fs_allowin = Wire(UInt(1.W))
     val fs_ready_go = Wire(UInt(1.W))
     
@@ -53,13 +53,18 @@ class CPU_IF extends Module {
     
     fs_allowin := 1.U
     // TODO: check valid condition in the future
-    fs_valid := 1.U
-    io.fs_to_es_valid := fs_valid === 1.U && (data_handshake === 1.U || data_handshake_r === 1.U)
+    when (/*(io.es_allowin === 1.U) && */!(io.fs_ex === 1.U)) {
+        fs_valid := 1.U
+    } .elsewhen (fs_ready_go === 1.U && io.es_allowin === 1.U) {
+        fs_valid := 0.U
+    }
+    
+    io.fs_to_es_valid := fs_valid === 1.U && (data_handshake | data_handshake_r) === 1.U
     
     addr_handshake := io.inst_req_valid === 1.U && io.inst_req_ack === 1.U
     data_handshake := io.inst_ack === 1.U && io.inst_valid === 1.U
-    printf(p"io.inst_valid = ${io.inst_valid} fs_pc = ${io.fs_pc}\n")
-    fs_ready_go := data_handshake
+    // printf(p"io.inst_valid = ${io.inst_valid} fs_pc = ${io.fs_pc}\n")
+    fs_ready_go := data_handshake | data_handshake_r
     
     io.fs_pc := fs_pc_r
     
@@ -73,7 +78,7 @@ class CPU_IF extends Module {
     
     io.inst_addr := next_pc
     
-    when(fs_ready_go === 1.U) {
+    when(fs_ready_go === 1.U && io.es_allowin === 1.U) {
         // TODO: check maybe the update should happen when we are able to move to the next stage
         fs_pc_r := next_pc
     }
@@ -86,8 +91,15 @@ class CPU_IF extends Module {
         data_handshake_r := 1.U
     }
     
+    val inst_req_valid_set = RegInit(0.U(1.W))
     
-    when((io.es_allowin === 1.U) && !(io.fs_ex === 1.U)) {
+    when (fs_ready_go === 1.U && io.es_allowin === 1.U) {
+        inst_req_valid_set := 0.U
+    } .elsewhen (fs_valid === 1.U && inst_req_valid_set === 0.U) {
+        inst_req_valid_set := 1.U
+    }
+    
+    when (fs_valid === 1.U && inst_req_valid_set === 0.U) {
         inst_req_valid_r := 1.U;
     }.elsewhen(addr_handshake === 1.U) {
         inst_req_valid_r := 0.U
@@ -114,8 +126,8 @@ class CPU_IF extends Module {
         fs_inst_r := io.inst_data
     }
     
-    printf("inst fetched in IF = %x addr_handshake = %d data_handshake = %d " +
-      "branch_valid = %d branch target = %x\n", io.inst_data, addr_handshake, data_handshake, io.br_valid, io.br_target)
+    // printf("inst fetched in IF = %x addr_handshake = %d data_handshake = %d " +
+    //  "branch_valid = %d branch target = %x\n", io.inst_data, addr_handshake, data_handshake, io.br_valid, io.br_target)
     
     
 }

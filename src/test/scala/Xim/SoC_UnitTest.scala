@@ -5,7 +5,7 @@ import chisel3.iotesters.PeekPokeTester
 
 class SoC_UnitTester(c: SoC) extends PeekPokeTester(c) {
     private val SoC = c
-    for (i <- 0 to 30) {
+    for (i <- 0 to 50) {
         step(1)
     }
     

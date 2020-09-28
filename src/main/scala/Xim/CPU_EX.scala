@@ -64,8 +64,8 @@ class CPU_EX extends Module {
     val es_load = Wire(UInt(1.W))
     val es_store = Wire(UInt(1.W))
     val es_branch = Wire(UInt(1.W))
-    val es_load_r = RegInit(0.U(1.W))
-    val es_store_r = RegInit(1.U(1.W))
+    //val es_load_r = RegInit(0.U(1.W))
+    //val es_store_r = RegInit(1.U(1.W))
     val es_data_handshake = Wire(UInt(1.W))
     val es_addr_handshake = Wire(UInt(1.W))
     val es_write_r = RegInit(0.U(1.W))
@@ -124,7 +124,7 @@ class CPU_EX extends Module {
     val inst_reserved = Wire(UInt(1.W)) // reserved instruction
     
     when(es_load === 1.U || es_store === 1.U) {
-        es_ready_go := io.data_data_ack
+        es_ready_go := es_data_handshake
     }.otherwise {
         es_ready_go := 1.U
     }
@@ -193,9 +193,9 @@ class CPU_EX extends Module {
         es_instr := io.fs_inst
     }
     
-    when(inst_reload === 1.U) {
+    when (inst_reload === 1.U) {
         es_valid := 0.U
-    }.elsewhen(io.es_allowin === 1.U) {
+    } .elsewhen(io.es_allowin === 1.U) {
         es_valid := io.fs_to_es_valid
         // TODO: check exception conditions here
     }
@@ -458,6 +458,20 @@ class CPU_EX extends Module {
     io.data_read := es_read_r
     es_data_handshake := io.data_read_valid === 1.U && io.data_data_ack === 1.U
     es_addr_handshake := (io.data_write | io.data_read) === 1.U && io.data_req_ack === 1.U
+    val es_write_set = RegInit(0.U(1.W))
+    val es_read_set = RegInit(0.U(1.W))
+    
+    when (es_new_instr === 1.U) {
+        es_write_set := 0.U
+    } .elsewhen (es_store === 1.U) {
+        es_write_set := 1.U
+    }
+    
+    when (es_new_instr === 1.U) {
+        es_read_set := 0.U
+    } .elsewhen (es_load === 1.U) {
+        es_read_set := 1.U
+    }
     
     when (inst_sb === 1.U || inst_lb === 1.U || inst_lbu === 1.U) {
         io.data_size := 0.U
@@ -469,19 +483,20 @@ class CPU_EX extends Module {
         io.data_size := 0.U
     }
     
-    when (es_load === 1.U) {
-        es_read_r := 1.U
-    } .elsewhen (es_addr_handshake === 1.U) {
+    when (es_addr_handshake === 1.U) {
         es_read_r := 0.U
+    } .elsewhen (es_load === 1.U && es_read_set === 0.U) {
+        es_read_r := 1.U
     }
     
-    when (es_store === 1.U) {
-        es_store_r := 1.U
-    } .elsewhen (es_addr_handshake === 1.U) {
-        es_store_r := 0.U
+    when (es_addr_handshake === 1.U) {
+        es_write_r := 0.U
+    } .elsewhen (es_store === 1.U && es_write_set === 0.U) {
+        es_write_r := 1.U
     }
     
     // Maybe we do not need this flag
+    /*
     when(es_new_instr === 1.U) {
         es_load_r := es_load
     }
@@ -489,6 +504,7 @@ class CPU_EX extends Module {
     when(es_new_instr === 1.U) {
         es_store_r := es_store
     }
+     */
     
     // for store instructions, always from rs2
     io.data_write_data := reg_rdata_2
@@ -547,7 +563,7 @@ class CPU_EX extends Module {
         // The current condition indicates that if our instruction is not a load, it should go directly into the write
         // back stage, which finishes in a single cycle
         reg_wen := 1.U
-    } .elsewhen (es_new_instr === 1.U) {
+    } .elsewhen (es_load === 0.U && es_new_instr === 1.U) {
         reg_wen := gr_we
     } .otherwise {
         reg_wen := 0.U
