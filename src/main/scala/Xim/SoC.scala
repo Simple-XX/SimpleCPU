@@ -82,8 +82,8 @@ class SoC extends Module {
     Core.io.data_req_ack := CPU_Bridge.io.data_addr_ok
     Core.io.data_read_valid := CPU_Bridge.io.data_data_ok
     
-    printf(p"SRAM-like: inst_addr = ${CPU_Bridge.io.inst_addr} inst_req = ${CPU_Bridge.io.inst_req}, inst_wr = ${CPU_Bridge.io.inst_wr} inst_addr_ok = ${CPU_Bridge.io.inst_addr_ok}\n")
-    printf(p"AXI RAM: araddr = ${CPU_Bridge.io.araddr} arready = ${CPU_Bridge.io.arready} arvalid = ${CPU_Bridge.io.arvalid} rready = ${CPU_Bridge.io.rready} rvalid = ${CPU_Bridge.io.rvalid} rdata = ${CPU_Bridge.io.rdata}\n")
+    // printf(p"SRAM-like: inst_addr = ${CPU_Bridge.io.inst_addr} inst_req = ${CPU_Bridge.io.inst_req}, inst_wr = ${CPU_Bridge.io.inst_wr} inst_addr_ok = ${CPU_Bridge.io.inst_addr_ok}\n")
+    // printf(p"AXI RAM: araddr = ${CPU_Bridge.io.araddr} arready = ${CPU_Bridge.io.arready} arvalid = ${CPU_Bridge.io.arvalid} rready = ${CPU_Bridge.io.rready} rvalid = ${CPU_Bridge.io.rvalid} rdata = ${CPU_Bridge.io.rdata}\n")
 }
 
 object SoC extends App {

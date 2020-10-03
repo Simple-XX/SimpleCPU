@@ -31,6 +31,10 @@ EX级进行指令译码执行访存写回，若为访存指令则发出访存请
 
 2020.9.26 AXI RAM接入，构建简易SoC
 
+2020.10.2 CSR指令接入
+
+2020.10.3 开跑部分功能测试
+
 ### TODO
 
 1. load and store (the instructions that need to stay multiple cycles in ES)

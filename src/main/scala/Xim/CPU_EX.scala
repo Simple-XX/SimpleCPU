@@ -2,6 +2,8 @@ package Xim
 
 import chisel3._
 
+object excode_const extends ExceptionConstants
+
 class CPU_EX extends Module {
     val io = IO(new Bundle {
         val data_addr = Output(UInt(32.W))
@@ -37,6 +39,21 @@ class CPU_EX extends Module {
         val es_reg_wdata = Output(UInt(32.W))
     })
     
+    // hmmmm may not be useful
+    private def offset_calc(size: Int, addr: Int) : Int = {
+        // we expect that the lowest two bits of address are passed
+        var ret : Int = 0
+        if (size == 0) {
+            ret = addr * 8
+        } else if (size == 1) {
+            ret = addr * 16
+        } else {
+            ret = -1
+            printf("ERROR offset\n");
+        }
+        return ret
+    }
+    
     printf(p"reg_wen = ${io.es_reg_wen} reg_waddr = ${io.es_reg_waddr} reg_wdata = ${io.es_reg_wdata}\n")
     
     val es_valid = RegInit(0.U(1.W))
@@ -44,6 +61,21 @@ class CPU_EX extends Module {
     val es_ready_go = Wire(UInt(1.W))
     val es_pc = Reg(UInt(32.W))
     val es_instr = Reg(UInt(32.W))
+    val es_excode = Wire(UInt(32.W))
+    
+    val CSR_module = Module(new CSR)
+    val CSR_ex = Wire(UInt(1.W))
+    val CSR_excode = Wire(UInt(32.W))
+    val CSR_epc = Wire(UInt(32.W))
+    val CSR_badaddr = Wire(UInt(32.W))
+    val CSR_write = Wire(UInt(1.W))
+    val CSR_read_num = Wire(UInt(12.W))
+    val CSR_write_num = Wire(UInt(12.W))
+    val CSR_write_data = Wire(UInt(32.W))
+    val CSR_read_data = Wire(UInt(32.W))
+    val CSR_mtvec = Wire(UInt(32.W))
+    val es_csr = Wire(UInt(1.W))
+    val timer_int = Wire(UInt(1.W))
     
     // branch related
     val rs1_equal_rs2 = Wire(UInt(1.W))
@@ -147,6 +179,8 @@ class CPU_EX extends Module {
     val B_imm = Wire(SInt(32.W)) // sign extend
     val U_imm = Wire(UInt(32.W)) // imm to upper
     val J_imm = Wire(SInt(32.W)) // sign extend
+    val Csr_imm = Wire(UInt(32.W)) // zero extend
+    val Csr_num = Wire(UInt(12.W)) // exactly
     val I_imm_b = Wire(new I_imm_bundle)
     val S_imm_b = Wire(new S_imm_bundle)
     val B_imm_b = Wire(new B_imm_bundle)
@@ -177,7 +211,9 @@ class CPU_EX extends Module {
         inst_imm := U_imm
     }.elsewhen(inst_j === 1.U) {
         inst_imm := J_imm.asUInt
-    }.otherwise {
+    } .elsewhen ((inst_csrrci | inst_csrrwi | inst_csrrsi) === 1.U) {
+        inst_imm := Csr_imm
+    } .otherwise {
         inst_imm := 0.U
     }
     printf(p"io.es_allowin = ${io.es_allowin} io.fs_to_es_valid = ${io.fs_to_es_valid}\n")
@@ -217,6 +253,7 @@ class CPU_EX extends Module {
     B_imm := (B_imm_b.asUInt).asSInt()
     U_imm := U_imm_b.asUInt
     J_imm := (J_imm_b.asUInt).asSInt()
+    Csr_imm := rs1.asUInt()
     
     I_imm_b.inst_31 := es_instr(31)
     I_imm_b.inst_30_25 := es_instr(30, 25)
@@ -245,6 +282,8 @@ class CPU_EX extends Module {
     J_imm_b.inst_30_25 := es_instr(30, 25)
     J_imm_b.inst_24_21 := es_instr(24, 21)
     J_imm_b.zero := 0.U
+    
+    Csr_num := es_instr(31, 20)
     
     
     val opcode_decoder: decoder_7_128 = Module(new decoder_7_128)
@@ -341,6 +380,8 @@ class CPU_EX extends Module {
     val es_src2_rs2_self = Wire(UInt(1.W))
     val es_src2_pc = Wire(UInt(1.W))
     val es_src2_imm = Wire(UInt(1.W))
+    val es_src2_csr = Wire(UInt(1.W))
+    val es_src2_zero = Wire(UInt(1.W))
     val es_alu_op_add = Wire(UInt(1.W))
     val es_alu_op_sub = Wire(UInt(1.W))
     val es_alu_op_slt = Wire(UInt(1.W))
@@ -373,23 +414,31 @@ class CPU_EX extends Module {
     reg_raddr_1 := rs1
     reg_raddr_2 := rs2
     
-    es_src1_imm := inst_auipc | inst_jal | inst_beq | inst_bne | inst_blt | inst_bge | inst_bltu | inst_bgeu
-    es_src1_rs1 := inst_jalr | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_sb | inst_sh | inst_sw | inst_addi | inst_add | inst_sub | inst_slti | inst_slt | inst_sltiu | inst_sltu | inst_andi | inst_and | inst_ori | inst_or | inst_xori | inst_xor | inst_slli | inst_sll | inst_srli | inst_srl | inst_srai | inst_sra | inst_lui // LUI will not use src1
+    // TODO: Wanring: improper inst_csrr related operation here!!!
+    es_src1_imm := inst_auipc | inst_jal | inst_beq | inst_bne | inst_blt | inst_bge | inst_bltu | inst_bgeu |
+      inst_csrrwi | inst_csrrsi | inst_csrrci
+    es_src1_rs1 := inst_jalr | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_sb | inst_sh | inst_sw | inst_addi |
+      inst_add | inst_sub | inst_slti | inst_slt | inst_sltiu | inst_sltu | inst_andi | inst_and | inst_ori | inst_or |
+      inst_xori | inst_xor | inst_slli | inst_sll | inst_srli | inst_srl | inst_srai | inst_sra | inst_lui | // LUI will not use src1
+      inst_csrrs | inst_csrrw | inst_csrrc
     es_src2_rs2 := inst_add | inst_sub | inst_slt | inst_sltu | inst_and | inst_or | inst_xor | inst_sll | inst_srl | inst_sra
     es_src2_rs2_self := inst_slli | inst_srli | inst_srai
     es_src2_pc := inst_auipc | inst_jal | inst_beq | inst_bne | inst_blt | inst_bge | inst_bltu | inst_bgeu
-    es_src2_imm := inst_jalr | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_sb | inst_sh | inst_sw | inst_addi | inst_slti | inst_sltiu | inst_andi | inst_ori | inst_xori | inst_lui
+    es_src2_imm := inst_jalr | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_sb | inst_sh | inst_sw |
+      inst_addi | inst_slti | inst_sltiu | inst_andi | inst_ori | inst_xori | inst_lui
+    es_src2_csr := inst_csrrc | inst_csrrs | inst_csrrci | inst_csrrsi
+    es_src2_zero := inst_csrrw | inst_csrrwi
     
     es_alu_op_add := (inst_auipc | inst_jal | inst_jalr | inst_beq | inst_bne | inst_blt | inst_bge |
       inst_bltu | inst_bgeu | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu |
-      inst_sb | inst_sh | inst_sw | inst_addi | inst_add)
+      inst_sb | inst_sh | inst_sw | inst_addi | inst_add | inst_csrrw | inst_csrrwi)
     es_alu_op_sub := inst_sub
     es_alu_op_slt := inst_slti | inst_slt
     es_alu_op_sltu := inst_sltiu | inst_sltu
     es_alu_op_and := inst_andi | inst_and
     es_alu_op_nor := 0.U // unused for risc-v
-    es_alu_op_or := inst_ori | inst_or
-    es_alu_op_xor := inst_xori | inst_xor
+    es_alu_op_or := inst_ori | inst_or | inst_csrrs | inst_csrrsi
+    es_alu_op_xor := inst_xori | inst_xor | inst_csrrc | inst_csrrci
     es_alu_op_sll := inst_slli | inst_sll
     es_alu_op_srl := inst_srli | inst_srl
     es_alu_op_sra := inst_srai | inst_sra
@@ -412,7 +461,11 @@ class CPU_EX extends Module {
         es_alu.io.alu_src2 := reg_rdata_2
     }.elsewhen(es_src2_rs2_self === 1.U) {
         es_alu.io.alu_src2 := rs2
-    }.otherwise {
+    } .elsewhen (es_src2_zero === 1.U) {
+        es_alu.io.alu_src2 := 0.U
+    } .elsewhen (es_src2_csr === 1.U) {
+        es_alu.io.alu_src2 := CSR_read_data
+    } .otherwise {
         es_alu.io.alu_src2 := 0.U
     }
     
@@ -507,7 +560,16 @@ class CPU_EX extends Module {
      */
     
     // for store instructions, always from rs2
-    io.data_write_data := reg_rdata_2
+    when (inst_sw === 1.U) {
+        io.data_write_data := reg_rdata_2
+    } .elsewhen (inst_sh === 1.U) {
+        io.data_write_data := reg_rdata_2(15, 0).asUInt()
+    } .elsewhen (inst_sb === 1.U) {
+        io.data_write_data := reg_rdata_2(7, 0).asUInt()
+    } .otherwise {
+        io.data_write_data := 0.U
+    }
+    
     
     // dummy signal for now
     io.data_data_ack := 1.U
@@ -574,13 +636,59 @@ class CPU_EX extends Module {
       inst_sub | inst_sll | inst_slt | inst_sltu | inst_xor | inst_srl | inst_sra | inst_or | inst_and | inst_csrrc |
       inst_csrrci | inst_csrrs | inst_csrrsi | inst_csrrw | inst_csrrwi
     
+    CSR_module.io.es_ex := CSR_ex
+    CSR_module.io.es_excode := CSR_excode
+    CSR_module.io.es_ex_pc := CSR_epc
+    CSR_module.io.es_ex_addr := CSR_badaddr
+    CSR_module.io.es_csr_wr := CSR_write
+    CSR_module.io.es_csr_read_num := CSR_read_num
+    CSR_module.io.es_csr_write_num := CSR_write_num
+    CSR_module.io.es_csr_write_data := CSR_write_data
+    CSR_read_data := CSR_module.io.es_csr_read_data
+    CSR_mtvec := CSR_module.io.mtrap_entry
+    timer_int := CSR_module.io.time_int
+    
+    es_csr := inst_csrrs | inst_csrrc | inst_csrrw | inst_csrrwi | inst_csrrsi | inst_csrrci
+    
+    CSR_ex := es_pc
+    CSR_excode := es_excode
+    CSR_epc := es_pc // only usable when ex is high
+    
+    when (inst_reserved === 1.U) {
+        // fill with instruction itself
+        // TODO: deal with unaligned related exceptions
+        CSR_badaddr := es_instr
+    } .elsewhen (es_excode === excode_const.InstructionMisaligned) {
+        CSR_badaddr := es_pc
+    } .elsewhen (es_excode === excode_const.LoadAddrMisaligned || es_excode === excode_const.StoreAddrMisaligned) {
+        CSR_badaddr := io.data_addr
+    } .otherwise {
+        CSR_badaddr := 0.U
+    }
+    
+    CSR_write_data := alu_result
+    
+    when (es_csr === 1.U && es_new_instr === 1.U) {
+        CSR_write := 1.U
+    } .otherwise {
+        CSR_write := 0.U
+    }
+    
+    CSR_read_num := Csr_num
+    CSR_write_num := Csr_num
+    
+    
     // wdata related signals
     val reg_wdata_alu = Wire(UInt(1.W))
     val reg_wdata_mem = Wire(UInt(1.W))
     val reg_wdata_csr = Wire(UInt(1.W))
+    val reg_wdata_pc_off = Wire(UInt(1.W))
+    val pc_off = Wire(UInt(32.W))
+    
+    pc_off := es_pc + 4.U
     
     // currently no write from csr
-    reg_wdata_alu := inst_lui | inst_auipc | inst_jal | inst_jalr | inst_addi | inst_slti | inst_sltiu | inst_xori |
+    reg_wdata_alu := inst_lui | inst_auipc | inst_addi | inst_slti | inst_sltiu | inst_xori |
       inst_ori | inst_andi | inst_slli | inst_srli | inst_srai | inst_add | inst_sub | inst_sll | inst_slt | inst_sltu |
       inst_xor | inst_srl | inst_sra | inst_or | inst_and
     
@@ -588,18 +696,47 @@ class CPU_EX extends Module {
     
     reg_wdata_csr := inst_csrrc | inst_csrrci | inst_csrrs | inst_csrrsi | inst_csrrw | inst_csrrwi
     
-    when(reg_wdata_alu === 1.U) {
+    reg_wdata_pc_off := inst_jal | inst_jalr
+    
+    when (reg_wdata_alu === 1.U) {
         reg_wdata := alu_result
-    }.elsewhen(reg_wdata_mem === 1.U) {
+    } .elsewhen (reg_wdata_pc_off === 1.U) {
+        reg_wdata := pc_off
+    } .elsewhen(reg_wdata_mem === 1.U && inst_lw === 1.U) {
         // TODO: check the proper condition here: stored data rather than wired ones
         reg_wdata := io.data_read_data
-    }.elsewhen(reg_wdata_csr === 1.U) {
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lh === 1.U && alu_result(1, 0) === 0.U) {
+        reg_wdata := io.data_read_data(15, 0).asSInt().asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lh === 1.U && alu_result(1, 0) === 2.U) {
+        reg_wdata := io.data_read_data(31, 16).asSInt().asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lhu === 1.U && alu_result(1, 0) === 0.U) {
+        reg_wdata := io.data_read_data(15, 0).asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lhu === 1.U && alu_result(1, 0) === 2.U) {
+        reg_wdata := io.data_read_data(31, 16).asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 0.U) {
+        reg_wdata := io.data_read_data(7, 0).asSInt().asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 1.U) {
+        reg_wdata := io.data_read_data(15, 8).asSInt().asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 2.U) {
+        reg_wdata := io.data_read_data(23, 16).asSInt().asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 3.U) {
+        reg_wdata := io.data_read_data(31, 24).asSInt().asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 0.U) {
+        reg_wdata := io.data_read_data(7, 0).asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 1.U) {
+        reg_wdata := io.data_read_data(15, 8).asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 2.U) {
+        reg_wdata := io.data_read_data(23, 16).asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 3.U) {
+        reg_wdata := io.data_read_data(31, 24).asUInt()
+    } .elsewhen(reg_wdata_csr === 1.U) {
         // TODO: check the proper condition here after adding csrs
-        reg_wdata := 0.U
-    }.otherwise {
+        reg_wdata := CSR_read_data
+    } .otherwise {
         reg_wdata := 0.U
     }
     
+    io.ex_target := CSR_mtvec
     
     /*
     * Currently not implemented signals
@@ -613,8 +750,12 @@ class CPU_EX extends Module {
     // es_branch := 0.U
     // io.data_write_data := 0.U
     //io.br_valid := 0.U
+    es_excode := 0.U
+    // CSR_write := 0.U
+    // CSR_read_num := 0.U
+    // CSR_write_num := 0.U
     
-    io.ex_target := 0.U
+    
     
     
 }
