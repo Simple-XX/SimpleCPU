@@ -1,6 +1,7 @@
 package Xim
 
 import chisel3._
+import chisel3.util.Fill
 
 object excode_const extends ExceptionConstants
 
@@ -54,7 +55,6 @@ class CPU_EX extends Module {
         return ret
     }
     
-    printf(p"reg_wen = ${io.es_reg_wen} reg_waddr = ${io.es_reg_waddr} reg_wdata = ${io.es_reg_wdata}\n")
     
     val es_valid = RegInit(0.U(1.W))
     // es_allowin as Output
@@ -216,8 +216,6 @@ class CPU_EX extends Module {
     } .otherwise {
         inst_imm := 0.U
     }
-    printf(p"io.es_allowin = ${io.es_allowin} io.fs_to_es_valid = ${io.fs_to_es_valid}\n")
-    printf("es_instr = %x\n", es_instr)
     
     val es_new_instr = Wire(UInt(1.W))
     
@@ -240,7 +238,7 @@ class CPU_EX extends Module {
         es_pc := io.fs_pc
     }
     
-    printf(p"es_pc = ${es_pc}\n")
+    
     
     opcode := es_instr(6, 0)
     funct7 := es_instr(31, 25)
@@ -563,9 +561,9 @@ class CPU_EX extends Module {
     when (inst_sw === 1.U) {
         io.data_write_data := reg_rdata_2
     } .elsewhen (inst_sh === 1.U) {
-        io.data_write_data := reg_rdata_2(15, 0).asUInt()
+        io.data_write_data := Fill(2, reg_rdata_2(15, 0).asUInt())
     } .elsewhen (inst_sb === 1.U) {
-        io.data_write_data := reg_rdata_2(7, 0).asUInt()
+        io.data_write_data := Fill(4, reg_rdata_2(7, 0).asUInt())
     } .otherwise {
         io.data_write_data := 0.U
     }
@@ -595,14 +593,13 @@ class CPU_EX extends Module {
     
     when(br_taken === 1.U || inst_jal === 1.U | inst_jalr === 1.U) {
         io.br_target := alu_result
-        printf(p"Branch taken, target = ${io.br_target}")
+        // printf(p"Branch taken, target = ${io.br_target}")
     }.otherwise {
         io.br_target := 0.U
     }
     
     when(es_new_instr === 1.U) {
         inst_reload_r := inst_reload // only as a debug method
-        printf(p"New instr comes, reload: ${inst_reload_r}\n")
     }
     
     io.inst_reload := inst_reload_r
