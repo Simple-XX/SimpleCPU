@@ -695,42 +695,62 @@ class CPU_EX extends Module {
     
     reg_wdata_pc_off := inst_jal | inst_jalr
     
+    val reg_wdata_s = Wire(SInt(32.W))
+    // for convenice
+    
     when (reg_wdata_alu === 1.U) {
         reg_wdata := alu_result
+        reg_wdata_s := 0.S
     } .elsewhen (reg_wdata_pc_off === 1.U) {
         reg_wdata := pc_off
+        reg_wdata_s := 0.S
     } .elsewhen(reg_wdata_mem === 1.U && inst_lw === 1.U) {
         // TODO: check the proper condition here: stored data rather than wired ones
         reg_wdata := io.data_read_data
+        reg_wdata_s := 0.S
     } .elsewhen (reg_wdata_mem === 1.U && inst_lh === 1.U && alu_result(1, 0) === 0.U) {
-        reg_wdata := io.data_read_data(15, 0).asSInt().asUInt()
+        reg_wdata_s := io.data_read_data(15, 0).asSInt()
+        reg_wdata := reg_wdata_s.asUInt()
     } .elsewhen (reg_wdata_mem === 1.U && inst_lh === 1.U && alu_result(1, 0) === 2.U) {
-        reg_wdata := io.data_read_data(31, 16).asSInt().asUInt()
+        reg_wdata_s := io.data_read_data(31, 16).asSInt()
+        reg_wdata := reg_wdata_s.asUInt()
     } .elsewhen (reg_wdata_mem === 1.U && inst_lhu === 1.U && alu_result(1, 0) === 0.U) {
         reg_wdata := io.data_read_data(15, 0).asUInt()
+        reg_wdata_s := 0.S
     } .elsewhen (reg_wdata_mem === 1.U && inst_lhu === 1.U && alu_result(1, 0) === 2.U) {
         reg_wdata := io.data_read_data(31, 16).asUInt()
+        reg_wdata_s := 0.S
     } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 0.U) {
-        reg_wdata := io.data_read_data(7, 0).asSInt().asUInt()
+        reg_wdata_s := io.data_read_data(7, 0).asSInt()
+        reg_wdata := reg_wdata_s.asUInt()
     } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 1.U) {
-        reg_wdata := io.data_read_data(15, 8).asSInt().asUInt()
+        reg_wdata_s := io.data_read_data(15, 8).asSInt()
+        reg_wdata := reg_wdata_s.asUInt()
     } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 2.U) {
-        reg_wdata := io.data_read_data(23, 16).asSInt().asUInt()
+        reg_wdata_s := io.data_read_data(23, 16).asSInt()
+        reg_wdata := reg_wdata_s.asUInt()
     } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 3.U) {
-        reg_wdata := io.data_read_data(31, 24).asSInt().asUInt()
+        reg_wdata_s := io.data_read_data(31, 24).asSInt()
+        reg_wdata := reg_wdata_s.asUInt()
     } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 0.U) {
         reg_wdata := io.data_read_data(7, 0).asUInt()
+        reg_wdata_s := 0.S
     } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 1.U) {
         reg_wdata := io.data_read_data(15, 8).asUInt()
+        reg_wdata_s := 0.S
     } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 2.U) {
         reg_wdata := io.data_read_data(23, 16).asUInt()
+        reg_wdata_s := 0.S
     } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 3.U) {
         reg_wdata := io.data_read_data(31, 24).asUInt()
+        reg_wdata_s := 0.S
     } .elsewhen(reg_wdata_csr === 1.U) {
         // TODO: check the proper condition here after adding csrs
         reg_wdata := CSR_read_data
+        reg_wdata_s := 0.S
     } .otherwise {
         reg_wdata := 0.U
+        reg_wdata_s := 0.S
     }
     
     io.ex_target := CSR_mtvec
