@@ -19,7 +19,7 @@ class CSR extends Module {
         val mtrap_entry = Output(UInt(32.W))
     })
     // unimplemented signal:
-    io.time_int := 0.U
+    
     object csr_consts extends CSRConstants
     class misa extends Bundle {
         val MXL = UInt(2.W)
@@ -222,6 +222,7 @@ class CSR extends Module {
     // MTIME
     // Note that mtime and mtimecmp is memory-mapped, be careful when treating this
     // TODO: memory mapped IO here and for mtimecmp
+    io.time_int := time_int
     
     mtime_next_full := csr_mtime.asUInt() + 1.U
     mtime_full := csr_mtime.asUInt()

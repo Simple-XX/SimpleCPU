@@ -12,6 +12,10 @@
 
 5. External exceptions (unable to determine the currect way of handling this)
 
+6. Software exceptions (I am lazy enough)
+
+7. break exceptions (No need if you do not need to debug)
+
 ## Non-standard features:
 
 1. CSR-mapped `mtime` and `mtimecmp`
@@ -30,3 +34,26 @@ CSRRC ALU: rs1 xor CSR -> CSR CSR->rd
 CSRRWI: ALU: imm + 0 -> CSR CSR->rd
 CSRRSI: ALU: imm or CSR -> CSR CSR->rd
 CSRRCI: ALU: imm xor CSR -> CSR CSR->rd
+
+### Exception related
+
+#### Complete supported exception list
+
+1. Machine timer interrupt
+2. Instruction address misaligned
+3. Illegal instruction
+4. Load address misaligned
+5. Store address misaligned
+6. Environmental call from M mode
+
+#### IF identified exceptions:
+
+1. Instruction address misaligned
+
+#### EX indentified exceptions:
+
+1. Machine timer interrupt
+2. Illegal instruction
+3. Load address misaligned
+4. Store address misaligned
+5. Environmental call from M mode

@@ -29,9 +29,8 @@ class CPU_IF extends Module {
         val ex_target = Input(UInt(32.W))
         
     })
-    // Currently not implemented signals
-    io.fs_excode := 0.U
-    io.fs_ex := 0.U
+    
+    
     
     // unimplemented end
     
@@ -51,12 +50,21 @@ class CPU_IF extends Module {
     val inst_ack_r = RegInit(0.U(1.W))
     val fs_inst_r = Reg(UInt(32.W))
     
+    // Instruction misaligned has excode 0
+    io.fs_excode := 0.U
+    when (next_pc(1, 0) === 0.U) {
+        // aligned
+        io.fs_ex := 0.U
+    } .otherwise {
+        io.fs_ex := 1.U
+    }
+    
     fs_allowin := 1.U
     // TODO: check valid condition in the future
-    when (/*(io.es_allowin === 1.U) && */!(io.fs_ex === 1.U)) {
-        fs_valid := 1.U
-    } .elsewhen (fs_ready_go === 1.U && io.es_allowin === 1.U) {
+    when (fs_ready_go === 1.U && io.es_allowin === 1.U) {
         fs_valid := 0.U
+    } .otherwise {
+        fs_valid := 1.U
     }
     
     io.fs_to_es_valid := fs_valid === 1.U && (data_handshake | data_handshake_r) === 1.U
@@ -64,7 +72,8 @@ class CPU_IF extends Module {
     addr_handshake := io.inst_req_valid === 1.U && io.inst_req_ack === 1.U
     data_handshake := io.inst_ack === 1.U && io.inst_valid === 1.U
     // printf(p"io.inst_valid = ${io.inst_valid} fs_pc = ${io.fs_pc}\n")
-    fs_ready_go := data_handshake | data_handshake_r
+    fs_ready_go := data_handshake | data_handshake_r | io.fs_ex
+    // if we encounter an misaligned exception, we are ready to go
     
     io.fs_pc := fs_pc_r
     
@@ -93,7 +102,7 @@ class CPU_IF extends Module {
     
     val inst_req_valid_set = RegInit(0.U(1.W))
     
-    when (fs_ready_go === 1.U && io.es_allowin === 1.U) {
+    when (fs_ready_go === 1.U && io.es_allowin === 1.U && io.fs_ex === 0.U) {
         inst_req_valid_set := 0.U
     } .elsewhen (fs_valid === 1.U && inst_req_valid_set === 0.U) {
         inst_req_valid_set := 1.U

@@ -419,7 +419,6 @@ class CPU_EX extends Module {
     reg_raddr_1 := rs1
     reg_raddr_2 := rs2
     
-    // TODO: Wanring: improper inst_csrr related operation here!!!
     es_src1_imm := inst_auipc | inst_jal | inst_beq | inst_bne | inst_blt | inst_bge | inst_bltu | inst_bgeu |
       inst_csrrwi | inst_csrrsi | inst_csrrci
     es_src1_rs1 := inst_jalr | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_sb | inst_sh | inst_sw | inst_addi |
@@ -712,7 +711,6 @@ class CPU_EX extends Module {
         reg_wdata := pc_off
         reg_wdata_s := 0.S
     } .elsewhen(reg_wdata_mem === 1.U && inst_lw === 1.U) {
-        // TODO: check the proper condition here: stored data rather than wired ones
         reg_wdata := io.data_read_data
         reg_wdata_s := 0.S
     } .elsewhen (reg_wdata_mem === 1.U && inst_lh === 1.U && alu_result(1, 0) === 0.U) {
@@ -752,7 +750,6 @@ class CPU_EX extends Module {
         reg_wdata := io.data_read_data(31, 24).asUInt()
         reg_wdata_s := 0.S
     } .elsewhen(reg_wdata_csr === 1.U) {
-        // TODO: check the proper condition here after adding csrs
         reg_wdata := CSR_read_data
         reg_wdata_s := 0.S
     } .otherwise {
