@@ -64,6 +64,7 @@ class CPU_EX extends Module {
     val es_ready_go = Wire(UInt(1.W))
     val es_pc = Reg(UInt(32.W))
     val es_instr = Reg(UInt(32.W))
+    val es_ex = Wire(UInt(1.W))
     val es_excode = Wire(UInt(32.W))
     
     io.es_instr := es_instr
@@ -594,7 +595,7 @@ class CPU_EX extends Module {
     
     br_taken := beq_taken | bne_taken | blt_taken | bge_taken | bltu_taken | bgeu_taken
     
-    inst_reload := br_taken | inst_jal | inst_jalr
+    inst_reload := br_taken | inst_jal | inst_jalr | es_ex
     io.br_valid := inst_reload
     
     when(br_taken === 1.U || inst_jal === 1.U | inst_jalr === 1.U) {
@@ -653,7 +654,7 @@ class CPU_EX extends Module {
     
     es_csr := inst_csrrs | inst_csrrc | inst_csrrw | inst_csrrwi | inst_csrrsi | inst_csrrci
     
-    CSR_ex := es_pc
+    CSR_ex := es_ex
     CSR_excode := es_excode
     CSR_epc := es_pc // only usable when ex is high
     
@@ -771,6 +772,7 @@ class CPU_EX extends Module {
     // es_branch := 0.U
     // io.data_write_data := 0.U
     //io.br_valid := 0.U
+    es_ex := 0.U
     es_excode := 0.U
     // CSR_write := 0.U
     // CSR_read_num := 0.U
