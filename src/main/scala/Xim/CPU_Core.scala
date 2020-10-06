@@ -30,6 +30,8 @@ class CPU_Core extends Module {
         val reg_wen          = Output(UInt(1.W))
         val reg_wdata        = Output(UInt(32.W))
         val reg_waddr        = Output(UInt(5.W))
+        val es_instr         = Output(UInt(32.W))
+        val es_reg_a0        = Output(UInt(32.W))
     })
     val IF_Stage = Module(new CPU_IF)
     io.inst_addr := IF_Stage.io.inst_addr
@@ -53,6 +55,8 @@ class CPU_Core extends Module {
     io.reg_waddr := EX_Stage.io.es_reg_waddr
     io.reg_wdata := EX_Stage.io.es_reg_wdata
     io.reg_wen := EX_Stage.io.es_reg_wen
+    io.es_instr := EX_Stage.io.es_instr
+    io.es_reg_a0 := EX_Stage.io.es_reg_a0
     
     EX_Stage.io.fs_pc := IF_Stage.io.fs_pc
     EX_Stage.io.fs_inst := IF_Stage.io.fs_inst

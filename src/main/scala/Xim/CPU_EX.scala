@@ -38,6 +38,9 @@ class CPU_EX extends Module {
         val es_reg_wen = Output(UInt(1.W))
         val es_reg_waddr = Output(UInt(5.W))
         val es_reg_wdata = Output(UInt(32.W))
+        val es_reg_a0 = Output(UInt(32.W))
+        
+        val es_instr = Output(UInt(32.W))
     })
     
     // hmmmm may not be useful
@@ -62,6 +65,8 @@ class CPU_EX extends Module {
     val es_pc = Reg(UInt(32.W))
     val es_instr = Reg(UInt(32.W))
     val es_excode = Wire(UInt(32.W))
+    
+    io.es_instr := es_instr
     
     val CSR_module = Module(new CSR)
     val CSR_ex = Wire(UInt(1.W))
@@ -404,6 +409,8 @@ class CPU_EX extends Module {
     val reg_rdata_1 = Wire(UInt(32.W))
     val reg_rdata_2 = Wire(UInt(32.W))
     val gr_we = Wire(UInt(1.W))
+    
+    io.es_reg_a0 := reg_file.io.debug_a0
     
     io.es_reg_wen := reg_wen
     io.es_reg_waddr := reg_waddr

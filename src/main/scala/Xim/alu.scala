@@ -77,13 +77,13 @@ class ALU extends Module {
 
   adder_a := io.alu_src1
   
-  when (op_sub === 1.U || op_slt === 1.U || op_sltu === 1.U) {
+  when (op_sub === 1.U || op_sltu === 1.U) {
       adder_b := ~io.alu_src2
   } .otherwise {
       adder_b := io.alu_src2
   }
 
-  when (op_sub === 1.U || op_slt === 1.U || op_sltu === 1.U) {
+  when (op_sub === 1.U || op_sltu === 1.U) {
       adder_cin := 1.U
   } .otherwise {
       adder_cin := 0.U
@@ -107,7 +107,12 @@ class ALU extends Module {
   add_sub_result := adder_result
 
   slt_result.zero := 0.U
-  slt_result.sig := adder_result((32 - 1).U) ^ io.alu_overflow
+  when (io.alu_src1.asSInt() < io.alu_src2.asSInt()) {
+    slt_result.sig := 1.U
+  } .otherwise {
+    slt_result.sig := 0.U
+  }
+  
 
   sltu_result.zero := 0.U
   sltu_result.sig := ~adder_cout

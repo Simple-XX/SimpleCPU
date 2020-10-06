@@ -10,6 +10,8 @@ class SoC extends Module {
         val reg_wdata = Output(UInt(32.W))
         val reg_waddr = Output(UInt(5.W))
         // val es_pc = Output(UInt(32.W))
+        val es_instr = Output(UInt(32.W))
+        val es_reg_a0 = Output(UInt(32.W))
     })
     
     
@@ -26,6 +28,8 @@ class SoC extends Module {
     io.reg_wdata := Core.io.reg_wdata
     io.reg_waddr := Core.io.reg_waddr
     // io.es_pc := Core.io.es_pc
+    io.es_instr := Core.io.es_instr
+    io.es_reg_a0 := Core.io.es_reg_a0
     
     // CPU_Bridge.io <> RAM.io
     RAM.io.awid := CPU_Bridge.io.awid

@@ -5,7 +5,7 @@ import chisel3.util.HasBlackBoxInline
 
 class AXI_interface extends Bundle {
     private val data_width = 32
-    private val addr_width = 16
+    private val addr_width = 20 // 1 Megabyte should be enough for us
     private val wstrb_width = data_width / 8
     private val id_width = 8
     val awid = Input(UInt(data_width.W))
@@ -58,7 +58,7 @@ class AXI_ram extends BlackBox with HasBlackBoxInline {
     // Width of data bus in bits
     parameter DATA_WIDTH = 32,
     // Width of address bus in bits
-    parameter ADDR_WIDTH = 16,
+    parameter ADDR_WIDTH = 20,
     // Width of wstrb (width of data bus in words)
     parameter STRB_WIDTH = (DATA_WIDTH/8),
     // Width of ID signal

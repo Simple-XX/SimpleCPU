@@ -5,7 +5,23 @@ import chisel3.iotesters.{ChiselFlatSpec, Driver, PeekPokeTester}
 
 class ALUUnitTester(c: ALU) extends PeekPokeTester(c) {
     private val alu = c
-
+    
+    /*
+    poke(alu.io.alu_src1, 6)
+    poke(alu.io.alu_src2, 7)
+    poke(alu.io.alu_op, 2) // slt
+    expect(alu.io.alu_result, 1)
+    expect(alu.io.alu_overflow, 0)
+    
+     */
+    
+    poke(alu.io.alu_src1, -1)
+    poke(alu.io.alu_src2, 7)
+    poke(alu.io.alu_op, 4) // slt
+    expect(alu.io.alu_result, 1)
+    expect(alu.io.alu_overflow, 0)
+    
+    /*
     poke(alu.io.alu_src1, 6)
     poke(alu.io.alu_src2, 7)
     poke(alu.io.alu_op, 1) // add
@@ -39,4 +55,6 @@ class ALUUnitTester(c: ALU) extends PeekPokeTester(c) {
     poke(alu.io.alu_src2, 0xffff0000L)
     poke(alu.io.alu_op, 0x200) // sra
     expect(alu.io.alu_result, 0xffffL)
+    
+     */
 }

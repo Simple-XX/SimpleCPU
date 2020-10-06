@@ -35,6 +35,8 @@ EX级进行指令译码执行访存写回，若为访存指令则发出访存请
 
 2020.10.3 开跑部分功能测试
 
+2020.10.6 增加risc-v test自动测试脚本，确认全部RV32I指令跑通
+
 ### TODO
 
 1. load and store (the instructions that need to stay multiple cycles in ES)

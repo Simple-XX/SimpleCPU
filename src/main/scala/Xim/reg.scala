@@ -9,6 +9,7 @@ class RegFile (readPorts: Int) extends Module{
    val wdata = Input(UInt(32.W))
    val raddr = Input(Vec(readPorts, UInt(5.W)))
    val rdata = Output(Vec(readPorts, UInt(32.W)))
+     val debug_a0 = Output(UInt(32.W))
  })
 
  val regs = RegInit(VecInit(Seq.fill(32)(0.U(32.W))))
@@ -20,5 +21,7 @@ class RegFile (readPorts: Int) extends Module{
  for(i<-0 until readPorts){
    io.rdata(i) := regs(io.raddr(i))
  }
+    
+    io.debug_a0 := regs(10) // a0 is for debug purpose
 
 }
