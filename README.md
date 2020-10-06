@@ -39,10 +39,8 @@ EX级进行指令译码执行访存写回，若为访存指令则发出访存请
 
 ### TODO
 
-1. load and store (the instructions that need to stay multiple cycles in ES)
-2. CSR integration (instructions included)
-3. ex related
-4. test framework
+1. ex related
+2. enhanced test framework
 
 ### Notes
 
