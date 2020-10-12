@@ -13,6 +13,8 @@ class SoC_UnitTester(c: SoC) extends PeekPokeTester(c) {
         i += 1
     }
     expect(c.io.es_reg_a0, 0) // expect a0 to be zero
+    /* after test, trigger an exception as a test */
+    step(200)
     /*
     for (i <- 0 to 1000) {
         step(1)

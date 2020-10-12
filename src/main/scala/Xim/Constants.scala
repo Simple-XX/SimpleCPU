@@ -26,7 +26,8 @@ trait CSRConstants {
 
 trait ExceptionConstants {
     // Currently we do not handle page fault related exceptions
-    val MachineTimerInt = (0x80000007.S).asUInt()
+    var MachineTimerInt = UInt(32.W)
+    MachineTimerInt = (0x80000007.S).asUInt()
     // No external exceptions for now
     val InstructionMisaligned = 0x00000000.U
     val IllegalInstruction = 0x00000002.U

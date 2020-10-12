@@ -80,8 +80,15 @@ class CPU_EX extends Module {
     val CSR_write_data = Wire(UInt(32.W))
     val CSR_read_data = Wire(UInt(32.W))
     val CSR_mtvec = Wire(UInt(32.W))
+    val CSR_mip = Wire(UInt(32.W))
+    val CSR_mie = Wire(UInt(32.W))
+    val CSR_mstatus_mie = Wire(UInt(32.W))
     val es_csr = Wire(UInt(1.W))
     val timer_int = Wire(UInt(1.W))
+    val timer_int_r = RegInit(0.U(1.W))
+    val CSR_fault_addr = Wire(UInt(32.W))
+    val CSR_fault_instr = Wire(UInt(32.W))
+    val CSR_mepc = Wire(UInt(32.W))
     
     // branch related
     val rs1_equal_rs2 = Wire(UInt(1.W))
@@ -89,6 +96,7 @@ class CPU_EX extends Module {
     val rs1_less_rs2_signed = Wire(UInt(1.W))
     val br_taken = Wire(UInt(1.W))
     val inst_reload = Wire(UInt(1.W))
+    val inst_reload_no_ex = Wire(UInt(1.W))
     val beq_taken = Wire(UInt(1.W))
     val bne_taken = Wire(UInt(1.W))
     val blt_taken = Wire(UInt(1.W))
@@ -159,7 +167,9 @@ class CPU_EX extends Module {
     val inst_csrrsi = Wire(UInt(1.W))
     val inst_csrrci = Wire(UInt(1.W))
     val inst_fence_i = Wire(UInt(1.W))
+    val inst_mret = Wire(UInt(1.W))
     val inst_reserved = Wire(UInt(1.W)) // reserved instruction
+    val es_ecall = Wire(UInt(1.W))
     
     when(es_load === 1.U || es_store === 1.U) {
         es_ready_go := es_data_handshake
@@ -200,7 +210,7 @@ class CPU_EX extends Module {
     val inst_j = Wire(UInt(1.W))
     val inst_r = Wire(UInt(1.W))
     
-    inst_i := inst_jalr | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_addi | inst_slti | inst_sltiu | inst_xori | inst_ori | inst_andi | inst_fence_i
+    inst_i := inst_mret | inst_jalr | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_addi | inst_slti | inst_sltiu | inst_xori | inst_ori | inst_andi | inst_fence_i
     inst_s := inst_sb | inst_sh | inst_sw
     inst_b := inst_beq | inst_bne | inst_blt | inst_bge | inst_bltu | inst_bgeu
     inst_u := inst_lui | inst_auipc
@@ -224,6 +234,7 @@ class CPU_EX extends Module {
     }
     
     val es_new_instr = Wire(UInt(1.W))
+    val es_new_instr_r = RegInit(0.U(1.W))
     
     es_new_instr := io.es_allowin === 1.U && io.fs_to_es_valid === 1.U
     
@@ -232,6 +243,8 @@ class CPU_EX extends Module {
     }.elsewhen(es_new_instr === 1.U) {
         es_instr := io.fs_inst
     }
+    
+    es_new_instr_r := es_new_instr
     
     when (inst_reload === 1.U) {
         es_valid := 0.U
@@ -303,6 +316,7 @@ class CPU_EX extends Module {
     funct3_decoder.io.in := funct3
     funct3_d := funct3_decoder.io.out
     
+    inst_mret := opcode_d(0x73) === 1.U && I_imm === 0x302.S && funct3_d(0) === 1.U
     inst_lui := (opcode_d(0x37) === 1.U)
     inst_auipc := (opcode_d(0x17) === 1.U)
     inst_jal := (opcode_d(0x6f) === 1.U)
@@ -351,6 +365,8 @@ class CPU_EX extends Module {
     inst_csrrsi := (opcode_d(0x73) === 1.U) && (funct3_d(6) === 1.U)
     inst_csrrci := (opcode_d(0x73) === 1.U) && (funct3_d(7) === 1.U)
     
+    es_ecall := inst_ecall
+    
     inst_reserved := !(
       // RV32I
       inst_lui === 1.U || inst_auipc === 1.U || inst_jal === 1.U ||
@@ -368,7 +384,8 @@ class CPU_EX extends Module {
         inst_ebreak === 1.U ||
         // RV32Zifencei
         inst_fence_i === 1.U ||
-        
+        // RV32 Machine
+        inst_mret === 1.U ||
         // RV32Zicsr
         inst_csrrw === 1.U || inst_csrrs === 1.U || inst_csrrc === 1.U || inst_csrrc === 1.U || inst_csrrwi === 1.U || inst_csrrsi === 1.U || inst_csrrci === 1.U
       )
@@ -518,6 +535,11 @@ class CPU_EX extends Module {
     es_addr_handshake := (io.data_write | io.data_read) === 1.U && io.data_req_ack === 1.U
     val es_write_set = RegInit(0.U(1.W))
     val es_read_set = RegInit(0.U(1.W))
+    val es_write_ex = Wire(UInt(1.W))
+    val es_read_ex = Wire(UInt(1.W))
+    
+    es_write_ex := es_store === 1.U && io.data_addr(1, 0) != 0.U
+    es_read_ex := es_load === 1.U && io.data_addr(1, 0) != 0.U
     
     when (es_new_instr === 1.U) {
         es_write_set := 0.U
@@ -595,13 +617,17 @@ class CPU_EX extends Module {
     
     br_taken := beq_taken | bne_taken | blt_taken | bge_taken | bltu_taken | bgeu_taken
     
-    inst_reload := br_taken | inst_jal | inst_jalr | es_ex
+    // TODO: consider ex related
+    inst_reload_no_ex := br_taken | inst_jal | inst_jalr | inst_mret
+    inst_reload := inst_reload_no_ex | es_ex
     io.br_valid := inst_reload
     
     when(br_taken === 1.U || inst_jal === 1.U | inst_jalr === 1.U) {
         io.br_target := alu_result
         // printf(p"Branch taken, target = ${io.br_target}")
-    }.otherwise {
+    } .elsewhen (inst_mret === 1.U) {
+        io.br_target := CSR_mepc
+    } .otherwise {
         io.br_target := 0.U
     }
     
@@ -641,6 +667,7 @@ class CPU_EX extends Module {
       inst_csrrci | inst_csrrs | inst_csrrsi | inst_csrrw | inst_csrrwi
     
     CSR_module.io.es_ex := CSR_ex
+    CSR_module.io.es_new_instr := es_new_instr_r // this is high only when new instr finally come in
     CSR_module.io.es_excode := CSR_excode
     CSR_module.io.es_ex_pc := CSR_epc
     CSR_module.io.es_ex_addr := CSR_badaddr
@@ -648,15 +675,34 @@ class CPU_EX extends Module {
     CSR_module.io.es_csr_read_num := CSR_read_num
     CSR_module.io.es_csr_write_num := CSR_write_num
     CSR_module.io.es_csr_write_data := CSR_write_data
+    CSR_module.io.fault_addr := CSR_fault_addr
+    CSR_module.io.fault_instr := CSR_fault_instr
+    CSR_module.io.inst_mret := inst_mret
     CSR_read_data := CSR_module.io.es_csr_read_data
     CSR_mtvec := CSR_module.io.mtrap_entry
+    CSR_mip := CSR_module.io.mip
+    CSR_mie := CSR_module.io.mie
+    CSR_mstatus_mie := CSR_module.io.mstatus_mie
+    CSR_mepc := CSR_module.io.mepc
     timer_int := CSR_module.io.time_int
+    
+    
+    when (es_excode === excode_const.InstructionMisaligned) {
+        CSR_fault_addr := es_pc
+    } .elsewhen (es_excode === excode_const.LoadAddrMisaligned || es_excode === excode_const.StoreAddrMisaligned) {
+        CSR_fault_addr := io.data_addr
+    } .otherwise {
+        CSR_fault_addr := 0.U
+    }
+    
+    CSR_fault_instr := es_instr
     
     es_csr := inst_csrrs | inst_csrrc | inst_csrrw | inst_csrrwi | inst_csrrsi | inst_csrrci
     
     CSR_ex := es_ex
     CSR_excode := es_excode
     CSR_epc := es_pc // only usable when ex is high
+    
     
     when (inst_reserved === 1.U) {
         // fill with instruction itself
@@ -760,11 +806,69 @@ class CPU_EX extends Module {
     
     io.ex_target := CSR_mtvec
     
+    val fs_ex_r = RegInit(0.U(1.W))
+    val fs_excode_r = RegInit(0.U(32.W))
+    when (es_new_instr === 1.U) {
+        fs_ex_r := io.fs_ex
+        fs_excode_r := io.fs_excode
+    }
+    
+    when (timer_int === 1.U) {
+        timer_int_r := 1.U
+    } .elsewhen (es_new_instr === 1.U) {
+        timer_int_r := 0.U
+    }
+    
+    // TODO: reconsider the handling of timer interrupt to make sure that we only tag one instruction
+    // TODO: reconsider the mstatus, mip and mie csr impact
+    when (/*(es_new_instr === 1.U && inst_reload_no_ex  === 1.U) | */inst_reload_r === 1.U) {
+        // we are in the invalid slot,  do not handle any exceptions
+        es_ex := 0.U
+    } .elsewhen (/*(es_new_instr === 1.U && io.fs_ex === 1.U) |*/fs_ex_r === 1.U) {
+        // exception from FS: misaligned instruction address
+        es_ex := 1.U
+    } .elsewhen (es_ecall === 1.U) {
+        es_ex := 1.U
+    } .elsewhen (inst_reserved === 1.U) {
+        es_ex := 1.U
+    } .elsewhen (es_read_ex === 1.U) {
+        es_ex := 1.U
+    } .elsewhen (es_write_ex === 1.U) {
+        es_ex := 1.U
+    } .elsewhen (timer_int === 1.U || timer_int_r === 1.U) {
+        es_ex := 1.U
+    } .otherwise {
+        es_ex := 0.U
+    }
+    
+    /*when (es_new_instr === 1.U && io.fs_ex === 1.U) {
+        // exception from FS: misaligned instruction address
+        es_excode := io.fs_excode
+    } .else*/when (fs_ex_r === 1.U) {
+        es_excode := fs_excode_r
+    } .elsewhen (es_ecall === 1.U) {
+        es_excode := excode_const.MEcall
+    } .elsewhen (inst_reserved === 1.U) {
+        es_excode := excode_const.IllegalInstruction
+    } .elsewhen (es_read_ex === 1.U) {
+        es_excode := excode_const.LoadAddrMisaligned
+    } .elsewhen (es_write_ex === 1.U) {
+        es_excode := excode_const.StoreAddrMisaligned
+    } .elsewhen (timer_int === 1.U) {
+        es_excode := (0x80000007.S).asUInt()// excode_const.MachineTimerInt throws error here
+    } .otherwise {
+        es_excode := 0.U
+    }
+    
+    io.ex_valid := es_ex
+    
+    
+    
     /*
     * Currently not implemented signals
     * */
     // io.inst_reload := 0.U
-    io.ex_valid := 0.U
+    
     // io.data_wstrb := 0xf.U
     // es_store := 0.U
     // es_load := 0.U
@@ -772,8 +876,8 @@ class CPU_EX extends Module {
     // es_branch := 0.U
     // io.data_write_data := 0.U
     //io.br_valid := 0.U
-    es_ex := 0.U
-    es_excode := 0.U
+    // es_ex := 0.U
+    // es_excode := 0.U
     // CSR_write := 0.U
     // CSR_read_num := 0.U
     // CSR_write_num := 0.U

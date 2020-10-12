@@ -5,6 +5,7 @@ import chisel3._
 class CSR extends Module {
     val io = IO(new Bundle {
         val es_ex = Input(UInt(1.W))
+        val es_new_instr = Input(UInt(1.W))
         val es_excode = Input(UInt(32.W))
         val es_ex_pc = Input(UInt(32.W))
         val es_ex_addr = Input(UInt(32.W))
@@ -17,6 +18,20 @@ class CSR extends Module {
         val time_int = Output(UInt(1.W))
         // trap entry
         val mtrap_entry = Output(UInt(32.W))
+        // MEPC
+        val mepc = Output(UInt(32.W))
+        
+        // exception related
+        val mip = Output(UInt(32.W))
+        val mie = Output(UInt(32.W))
+        val mstatus_mie = Output(UInt(1.W))
+        
+        // for mtval
+        val fault_addr = Input(UInt(32.W))
+        val fault_instr = Input(UInt(32.W))
+        
+        // mret
+        val inst_mret = Input(UInt(32.W))
     })
     // unimplemented signal:
     
@@ -56,7 +71,7 @@ class CSR extends Module {
         val MPRV = UInt(1.W)  // hardwired to zero
         val XS = UInt(2.W) // hardwired to zero
         val FS = UInt(2.W) // hardwired to zero
-        val MPP = UInt(2.W)
+        val MPP = UInt(2.W) // hardwired to 2'b11
         val reserved_2 = UInt(2.W) // hardwired to zero
         val SPP = UInt(1.W) // hardwired to zero
         val MPIE = UInt(1.W)
@@ -133,10 +148,17 @@ class CSR extends Module {
     class mtval extends Bundle {
         val value = UInt(32.W)
     }
+    
+    // val es_ex_set = RegInit(0.U(1.W))
+    val es_ex_once = Wire(UInt(1.W))
+    
+    val mret_once = Wire(UInt(1.W))
+    // val mret_set = RegInit(0.U(1.W))
+    
     val mtime_full = Wire(UInt(64.W))
     val mtime_next_full = Wire(UInt(64.W))
     val mtimecmp_full = Wire(UInt(64.W))
-    val time_int = RegInit(0.U)
+    val time_int = Wire(UInt(1.W))
 
     val csr_misa = Wire(new misa);
     val csr_mvendorid = Wire(new mvendorid)
@@ -175,6 +197,18 @@ class CSR extends Module {
     // MTVAL
     val reset_mtval = WireInit(0.U.asTypeOf(new mtval))
     val csr_mtval = RegInit(reset_mtval)
+    
+    when (io.es_new_instr === 1.U && io.es_ex === 1.U) {
+        es_ex_once := 1.U
+    } .otherwise {
+        es_ex_once := 0.U
+    }
+    
+    when (io.es_new_instr === 1.U && io.inst_mret === 1.U) {
+        mret_once := 1.U
+    } .otherwise {
+        mret_once := 0.U
+    }
 
     csr_misa.MXL := 1.U // RV32
     csr_misa.WLRL := 0.U // reserved
@@ -189,10 +223,23 @@ class CSR extends Module {
     csr_mhartid.zero := 0.U
 
     // MSTATUS
-    when (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MSTATUS) {
+    when (es_ex_once === 1.U) {
+        csr_mstatus.MPIE := csr_mstatus.MIE
+    } .elsewhen (mret_once === 1.U) {
+        csr_mstatus.MPIE := 1.U // according to the SPEC
+    } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MSTATUS) {
         csr_mstatus.MPIE := io.es_csr_write_data(7)
+    }
+    
+    when (es_ex_once === 1.U) {
+        csr_mstatus.MIE := 0.U
+    } .elsewhen (mret_once === 1.U) {
+        csr_mstatus.MIE := csr_mstatus.MPIE
+    } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MSTATUS) {
         csr_mstatus.MIE := io.es_csr_write_data(3)
     }
+    
+    io.mstatus_mie := csr_mstatus.MIE
 
 
     // MTVEC
@@ -210,7 +257,20 @@ class CSR extends Module {
         csr_mip.MEIP := io.es_csr_write_data(11)
     }
     
-    csr_mip.MTIP := time_int // spec allows a delay here
+    when (csr_mip.MTIP === 1.U && csr_mstatus.MIE === 1.U && csr_mie.MTIE === 1.U) {
+        time_int := 1.U
+    } .otherwise {
+        time_int := 0.U
+    }
+    
+    when (io.es_csr_wr === 1.U && (io.es_csr_write_num === csr_consts.MTIMELO || io.es_csr_write_num === csr_consts.MTIMEHI ||
+      io.es_csr_write_num === csr_consts.MTIMECMPLO || io.es_csr_write_num === csr_consts.MTIMECMPHI )) {
+        csr_mip.MTIP := 0.U
+    } .elsewhen (mtime_full === mtimecmp_full) {
+        csr_mip.MTIP := 1.U
+    }
+    
+    io.mip := csr_mip.asUInt()
 
     // MIE
     when (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MIE) {
@@ -218,6 +278,7 @@ class CSR extends Module {
         csr_mie.MTIE := io.es_csr_write_data(7)
         csr_mie.MSIE := io.es_csr_write_data(3)
     }
+    io.mie := csr_mie.asUInt()
 
     // MTIME
     // Note that mtime and mtimecmp is memory-mapped, be careful when treating this
@@ -226,26 +287,20 @@ class CSR extends Module {
     
     mtime_next_full := csr_mtime.asUInt() + 1.U
     mtime_full := csr_mtime.asUInt()
-    mtimecmp_full := csr_mtime.asUInt()
+    mtimecmp_full := csr_mtimecmp.asUInt()
     
     
-    when (io.es_csr_wr === 1.U && (io.es_csr_write_num === csr_consts.MTIMELO || io.es_csr_write_num === csr_consts.MTIMEHI ||
-      io.es_csr_write_num === csr_consts.MTIMECMPLO || io.es_csr_write_num === csr_consts.MTIMECMPHI )) {
-        time_int := 0.U
-    } .elsewhen (mtime_full === mtimecmp_full && csr_mstatus.MIE === 1.U && csr_mip.MTIP === 1.U && csr_mie.MTIE === 1.U) {
-        time_int := 1.U
-    }
     
     when (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MTIMELO) {
         csr_mtime.lo := io.es_csr_write_data
     } .otherwise {
-        csr_mtime.lo := mtime_full(31, 0)
+        csr_mtime.lo := mtime_next_full(31, 0)
     }
     
     when (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MTIMEHI) {
         csr_mtime.hi := io.es_csr_write_data
     } .otherwise {
-        csr_mtime.hi := mtime_full(63, 32)
+        csr_mtime.hi := mtime_next_full(63, 32)
     }
 
     // MTIMECMP
@@ -264,17 +319,19 @@ class CSR extends Module {
     }
 
     // MEPC
-    when (io.es_ex === 1.U) {
+    when (es_ex_once === 1.U) {
         csr_mepc.value := io.es_ex_pc
     } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MEPC) {
         csr_mepc.value := io.es_csr_write_data
     }
+    
+    io.mepc := csr_mepc.asUInt()
 
     // MCAUSE
     // excode is generated in pipeline
     csr_mcause.excode := RegInit(0.U)
     csr_mcause.interrupt := RegInit(0.U)
-    when (io.es_ex=== 1.U) {
+    when (es_ex_once === 1.U) {
         csr_mcause.excode := io.es_excode(30, 0)
         csr_mcause.interrupt := io.es_excode(31)
     } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MCAUSE) {
@@ -284,8 +341,10 @@ class CSR extends Module {
 
     // MTVAL
     csr_mtval.value := RegInit(0.U)
-    when (io.es_ex === 1.U) {
-        csr_mtval.value := io.es_ex_addr
+    when (es_ex_once === 1.U && io.es_excode === excode_const.IllegalInstruction) {
+        csr_mtval.value := io.fault_instr
+    } .elsewhen (es_ex_once === 1.U && (io.es_excode === excode_const.StoreAddrMisaligned || io.es_excode === excode_const.LoadAddrMisaligned || io.es_excode === excode_const.InstructionMisaligned)) {
+        csr_mtval.value := io.fault_addr
     } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MTVAL) {
         csr_mtval.value := io.es_csr_write_data
     }

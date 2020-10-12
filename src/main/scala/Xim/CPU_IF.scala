@@ -51,7 +51,7 @@ class CPU_IF extends Module {
     val fs_inst_r = Reg(UInt(32.W))
     
     // Instruction misaligned has excode 0
-    io.fs_excode := 0.U
+    io.fs_excode := excode_const.InstructionMisaligned // the only possible exception here
     when (next_pc(1, 0) === 0.U) {
         // aligned
         io.fs_ex := 0.U

@@ -57,3 +57,11 @@ CSRRCI: ALU: imm xor CSR -> CSR CSR->rd
 3. Load address misaligned
 4. Store address misaligned
 5. Environmental call from M mode
+
+#### Design Notes
+
+We currently replace an instruction following the branch taken with a NOP-like instruction.
+This is fine with the normal user instructions already. While for an exception related condition, it may cause some
+weird conditions like mepc is written with an unexpected instruction.
+For our naive design, an instruction follwing the branch will not trigger any exception itself 
+so we do not handle exceptions. For the external exceptions, we will handle them when we are out of this condition
