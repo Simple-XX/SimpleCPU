@@ -39,6 +39,8 @@ class CPU_IF extends Module {
     val fs_ready_go = Wire(UInt(1.W))
     
     val next_pc = Wire(UInt(32.W))
+    val next_fs_ex = RegInit(0.U(1.W))
+    val fs_ex = RegInit(0.U(1.W))
     val fs_pc_r = RegInit((0xfffffffcL).U(32.W))
     
     // some handy signals
@@ -54,9 +56,9 @@ class CPU_IF extends Module {
     io.fs_excode := excode_const.InstructionMisaligned // the only possible exception here
     when (next_pc(1, 0) === 0.U) {
         // aligned
-        io.fs_ex := 0.U
+        next_fs_ex := 0.U
     } .otherwise {
-        io.fs_ex := 1.U
+        next_fs_ex := 1.U
     }
     
     fs_allowin := 1.U
@@ -67,7 +69,7 @@ class CPU_IF extends Module {
         fs_valid := 1.U
     }
     
-    io.fs_to_es_valid := fs_valid === 1.U && (data_handshake | data_handshake_r) === 1.U
+    io.fs_to_es_valid := (fs_valid === 1.U && (data_handshake | data_handshake_r) === 1.U) || io.fs_ex === 1.U
     
     addr_handshake := io.inst_req_valid === 1.U && io.inst_req_ack === 1.U
     data_handshake := io.inst_ack === 1.U && io.inst_valid === 1.U
@@ -90,7 +92,9 @@ class CPU_IF extends Module {
     when(fs_ready_go === 1.U && io.es_allowin === 1.U) {
         // TODO: check maybe the update should happen when we are able to move to the next stage
         fs_pc_r := next_pc
+        fs_ex := next_fs_ex
     }
+    io.fs_ex := fs_ex
     
     when(io.ex_valid === 1.U) {
         data_handshake_r := 0.U

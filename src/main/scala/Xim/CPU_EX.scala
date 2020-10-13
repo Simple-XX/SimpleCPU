@@ -538,8 +538,10 @@ class CPU_EX extends Module {
     val es_write_ex = Wire(UInt(1.W))
     val es_read_ex = Wire(UInt(1.W))
     
-    es_write_ex := es_store === 1.U && io.data_addr(1, 0) != 0.U
-    es_read_ex := es_load === 1.U && io.data_addr(1, 0) != 0.U
+    es_write_ex := es_store === 1.U && ((inst_sw === 1.U && io.data_addr(1, 0) != 0.U)
+      || (inst_sh === 1.U && io.data_addr(0) != 0.U))
+    es_read_ex := es_load === 1.U && ((inst_lw === 1.U && io.data_addr(1, 0) != 0.U)
+      || ((inst_lh | inst_lhu) === 1.U && io.data_addr(0) != 0.U)) // lb and lbu will not trigger this exception
     
     when (es_new_instr === 1.U) {
         es_write_set := 0.U
@@ -813,7 +815,7 @@ class CPU_EX extends Module {
         fs_excode_r := io.fs_excode
     }
     
-    when (timer_int === 1.U) {
+    when (es_new_instr === 1.U && timer_int === 1.U) {
         timer_int_r := 1.U
     } .elsewhen (es_new_instr === 1.U) {
         timer_int_r := 0.U
@@ -824,6 +826,11 @@ class CPU_EX extends Module {
     when (/*(es_new_instr === 1.U && inst_reload_no_ex  === 1.U) | */inst_reload_r === 1.U) {
         // we are in the invalid slot,  do not handle any exceptions
         es_ex := 0.U
+    } .elsewhen (timer_int_r === 1.U) {
+        // This may occur when the current instruction has finished all the operations while still waiting for the next instruction
+        // so ex may only occur when this is a normal instruction (not an invalid slot) and when the exception occurs
+        // before the instruction comes in
+        es_ex := 1.U
     } .elsewhen (/*(es_new_instr === 1.U && io.fs_ex === 1.U) |*/fs_ex_r === 1.U) {
         // exception from FS: misaligned instruction address
         es_ex := 1.U
@@ -834,8 +841,6 @@ class CPU_EX extends Module {
     } .elsewhen (es_read_ex === 1.U) {
         es_ex := 1.U
     } .elsewhen (es_write_ex === 1.U) {
-        es_ex := 1.U
-    } .elsewhen (timer_int === 1.U || timer_int_r === 1.U) {
         es_ex := 1.U
     } .otherwise {
         es_ex := 0.U
