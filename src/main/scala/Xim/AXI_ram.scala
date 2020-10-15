@@ -45,6 +45,32 @@ class AXI_interface extends Bundle {
     val rready = Input(UInt(1.W))
 }
 
+class AXI_fake_serial extends Module {
+    private val data_width = 32
+    private val addr_width = 20 // 1 Megabyte should be enough for us
+    private val wstrb_width = data_width / 8
+    private val id_width = 8
+    val io = IO( new Bundle() {
+        // we only listen to the write channel
+        val awaddr = Input(UInt(data_width.W))
+        val awvalid = Input(UInt(1.W))
+        val wvalid = Input(UInt(1.W))
+        val wdata = Input(UInt(32.W))
+    })
+    val serial_valid = RegInit(0.U(1.W))
+    
+    when (io.awaddr === 0x80000.U && io.awvalid === 1.U) {
+        serial_valid := 1.U
+    } .elsewhen (io.wvalid === 1.U) {
+        // after finishing the transaction
+        serial_valid := 0.U
+    }
+    
+    when (serial_valid === 1.U && io.wvalid === 1.U) {
+        printf("%c", io.wdata(7, 0))
+    }
+}
+
 class AXI_ram extends BlackBox with HasBlackBoxInline {
     val io = IO(new AXI_interface {
         val clock = Input(Clock())

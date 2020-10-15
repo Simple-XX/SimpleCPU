@@ -41,6 +41,7 @@ class CPU_EX extends Module {
         val es_reg_a0 = Output(UInt(32.W))
         
         val es_instr = Output(UInt(32.W))
+        val es_pc = Output(UInt(32.W))
     })
     
     // hmmmm may not be useful
@@ -66,8 +67,11 @@ class CPU_EX extends Module {
     val es_instr = Reg(UInt(32.W))
     val es_ex = Wire(UInt(1.W))
     val es_excode = Wire(UInt(32.W))
+    val es_new_instr = Wire(UInt(1.W))
+    val es_new_instr_r = RegInit(0.U(1.W))
     
     io.es_instr := es_instr
+    io.es_pc := es_pc
     
     val CSR_module = Module(new CSR)
     val CSR_ex = Wire(UInt(1.W))
@@ -113,6 +117,7 @@ class CPU_EX extends Module {
     //val es_load_r = RegInit(0.U(1.W))
     //val es_store_r = RegInit(1.U(1.W))
     val es_data_handshake = Wire(UInt(1.W))
+    val es_data_handshake_r = RegInit(0.U(1.W))
     val es_addr_handshake = Wire(UInt(1.W))
     val es_write_r = RegInit(0.U(1.W))
     val es_read_r = RegInit(0.U(1.W))
@@ -172,9 +177,15 @@ class CPU_EX extends Module {
     val es_ecall = Wire(UInt(1.W))
     
     when(es_load === 1.U || es_store === 1.U) {
-        es_ready_go := es_data_handshake
+        es_ready_go := es_data_handshake | es_data_handshake_r
     }.otherwise {
         es_ready_go := 1.U
+    }
+    
+    when (es_data_handshake === 1.U) {
+        es_data_handshake_r := 1.U
+    } .elsewhen (es_new_instr === 1.U) {
+        es_data_handshake_r := 0.U
     }
     
     io.es_allowin := (!(es_valid === 1.U)) || (es_ready_go === 1.U)
@@ -196,6 +207,7 @@ class CPU_EX extends Module {
     val U_imm = Wire(UInt(32.W)) // imm to upper
     val J_imm = Wire(SInt(32.W)) // sign extend
     val Csr_imm = Wire(UInt(32.W)) // zero extend
+    val Csr_imm_tmp = Wire(UInt(32.W)) // make sure cast to 32 bit
     val Csr_num = Wire(UInt(12.W)) // exactly
     val I_imm_b = Wire(new I_imm_bundle)
     val S_imm_b = Wire(new S_imm_bundle)
@@ -233,8 +245,7 @@ class CPU_EX extends Module {
         inst_imm := 0.U
     }
     
-    val es_new_instr = Wire(UInt(1.W))
-    val es_new_instr_r = RegInit(0.U(1.W))
+
     
     es_new_instr := io.es_allowin === 1.U && io.fs_to_es_valid === 1.U
     
@@ -246,11 +257,15 @@ class CPU_EX extends Module {
     
     es_new_instr_r := es_new_instr
     
+    /*
     when (inst_reload === 1.U) {
         es_valid := 0.U
-    } .elsewhen(io.es_allowin === 1.U) {
-        es_valid := io.fs_to_es_valid
+    } .elsewhen(es_new_instr_r === 1.U) {
+        es_valid := 1.U
         // TODO: check exception conditions here
+    }*/
+    when(es_new_instr === 1.U) {
+        es_valid := !inst_reload
     }
     
     when(es_new_instr === 1.U) {
@@ -270,7 +285,14 @@ class CPU_EX extends Module {
     B_imm := (B_imm_b.asUInt).asSInt()
     U_imm := U_imm_b.asUInt
     J_imm := (J_imm_b.asUInt).asSInt()
-    Csr_imm := rs1.asUInt()
+    
+    when (inst_csrrci === 1.U) {
+        Csr_imm := ~Csr_imm_tmp
+    } .otherwise {
+        Csr_imm := Csr_imm_tmp
+    }
+    
+    Csr_imm_tmp := rs1.asUInt()
     
     I_imm_b.inst_31 := es_instr(31)
     I_imm_b.inst_30_25 := es_instr(30, 25)
@@ -457,21 +479,23 @@ class CPU_EX extends Module {
     es_alu_op_sub := inst_sub
     es_alu_op_slt := inst_slti | inst_slt
     es_alu_op_sltu := inst_sltiu | inst_sltu
-    es_alu_op_and := inst_andi | inst_and
+    es_alu_op_and := inst_andi | inst_and | inst_csrrc | inst_csrrci // csrrc and csrrci: ~imm & csr
     es_alu_op_nor := 0.U // unused for risc-v
     es_alu_op_or := inst_ori | inst_or | inst_csrrs | inst_csrrsi
-    es_alu_op_xor := inst_xori | inst_xor | inst_csrrc | inst_csrrci
+    es_alu_op_xor := inst_xori | inst_xor
     es_alu_op_sll := inst_slli | inst_sll
     es_alu_op_srl := inst_srli | inst_srl
     es_alu_op_sra := inst_srai | inst_sra
     es_alu_op_lui := inst_lui
     
     
-    when(es_src1_rs1 === 1.U) {
+    when (es_src1_rs1 === 1.U && inst_csrrc === 0.U) {
         es_alu.io.alu_src1 := reg_rdata_1
-    }.elsewhen(es_src1_imm === 1.U) {
+    } .elsewhen (es_src1_rs1 === 1.U && inst_csrrc === 1.U) {
+        es_alu.io.alu_src1 := ~reg_rdata_1
+    } .elsewhen(es_src1_imm === 1.U) {
         es_alu.io.alu_src1 := inst_imm
-    }.otherwise {
+    } .otherwise {
         es_alu.io.alu_src1 := 0.U;
     }
     
@@ -651,7 +675,7 @@ class CPU_EX extends Module {
     reg_waddr := rd
     
     // note that load instructions may only write when load data is returned
-    when(es_load === 1.U && es_data_handshake === 1.U) {
+    when(es_load === 1.U && (es_data_handshake === 1.U || es_data_handshake_r === 1.U) && es_new_instr === 1.U) {
         // TODO: revise proper condition here
         // Problem here: the reg will continue to write even after the first written
         // The current condition indicates that if our instruction is not a load, it should go directly into the write
@@ -746,12 +770,25 @@ class CPU_EX extends Module {
     
     reg_wdata_mem := inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu
     
+    val reg_wdata_mem_r = Reg(UInt(32.W))
+    val consistent_reg_wdata_mem = Wire(UInt(32.W))
+    
     reg_wdata_csr := inst_csrrc | inst_csrrci | inst_csrrs | inst_csrrsi | inst_csrrw | inst_csrrwi
     
     reg_wdata_pc_off := inst_jal | inst_jalr
     
     val reg_wdata_s = Wire(SInt(32.W))
     // for convenice
+    
+    when (es_data_handshake === 1.U) {
+        reg_wdata_mem_r  := io.data_read_data
+    }
+    
+    when (es_data_handshake === 1.U) {
+        consistent_reg_wdata_mem := io.data_read_data
+    } .otherwise {
+        consistent_reg_wdata_mem := reg_wdata_mem_r
+    }
     
     when (reg_wdata_alu === 1.U) {
         reg_wdata := alu_result
@@ -760,43 +797,43 @@ class CPU_EX extends Module {
         reg_wdata := pc_off
         reg_wdata_s := 0.S
     } .elsewhen(reg_wdata_mem === 1.U && inst_lw === 1.U) {
-        reg_wdata := io.data_read_data
+        reg_wdata := consistent_reg_wdata_mem
         reg_wdata_s := 0.S
     } .elsewhen (reg_wdata_mem === 1.U && inst_lh === 1.U && alu_result(1, 0) === 0.U) {
-        reg_wdata_s := io.data_read_data(15, 0).asSInt()
+        reg_wdata_s := consistent_reg_wdata_mem(15, 0).asSInt()
         reg_wdata := reg_wdata_s.asUInt()
     } .elsewhen (reg_wdata_mem === 1.U && inst_lh === 1.U && alu_result(1, 0) === 2.U) {
-        reg_wdata_s := io.data_read_data(31, 16).asSInt()
+        reg_wdata_s := consistent_reg_wdata_mem(31, 16).asSInt()
         reg_wdata := reg_wdata_s.asUInt()
     } .elsewhen (reg_wdata_mem === 1.U && inst_lhu === 1.U && alu_result(1, 0) === 0.U) {
-        reg_wdata := io.data_read_data(15, 0).asUInt()
+        reg_wdata := consistent_reg_wdata_mem(15, 0).asUInt()
         reg_wdata_s := 0.S
     } .elsewhen (reg_wdata_mem === 1.U && inst_lhu === 1.U && alu_result(1, 0) === 2.U) {
-        reg_wdata := io.data_read_data(31, 16).asUInt()
+        reg_wdata := consistent_reg_wdata_mem(31, 16).asUInt()
         reg_wdata_s := 0.S
     } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 0.U) {
-        reg_wdata_s := io.data_read_data(7, 0).asSInt()
+        reg_wdata_s := consistent_reg_wdata_mem(7, 0).asSInt()
         reg_wdata := reg_wdata_s.asUInt()
     } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 1.U) {
-        reg_wdata_s := io.data_read_data(15, 8).asSInt()
+        reg_wdata_s := consistent_reg_wdata_mem(15, 8).asSInt()
         reg_wdata := reg_wdata_s.asUInt()
     } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 2.U) {
-        reg_wdata_s := io.data_read_data(23, 16).asSInt()
+        reg_wdata_s := consistent_reg_wdata_mem(23, 16).asSInt()
         reg_wdata := reg_wdata_s.asUInt()
     } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 3.U) {
-        reg_wdata_s := io.data_read_data(31, 24).asSInt()
+        reg_wdata_s := consistent_reg_wdata_mem(31, 24).asSInt()
         reg_wdata := reg_wdata_s.asUInt()
     } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 0.U) {
-        reg_wdata := io.data_read_data(7, 0).asUInt()
+        reg_wdata := consistent_reg_wdata_mem(7, 0).asUInt()
         reg_wdata_s := 0.S
     } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 1.U) {
-        reg_wdata := io.data_read_data(15, 8).asUInt()
+        reg_wdata := consistent_reg_wdata_mem(15, 8).asUInt()
         reg_wdata_s := 0.S
     } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 2.U) {
-        reg_wdata := io.data_read_data(23, 16).asUInt()
+        reg_wdata := consistent_reg_wdata_mem(23, 16).asUInt()
         reg_wdata_s := 0.S
     } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 3.U) {
-        reg_wdata := io.data_read_data(31, 24).asUInt()
+        reg_wdata := consistent_reg_wdata_mem(31, 24).asUInt()
         reg_wdata_s := 0.S
     } .elsewhen(reg_wdata_csr === 1.U) {
         reg_wdata := CSR_read_data
@@ -826,21 +863,21 @@ class CPU_EX extends Module {
     when (/*(es_new_instr === 1.U && inst_reload_no_ex  === 1.U) | */inst_reload_r === 1.U) {
         // we are in the invalid slot,  do not handle any exceptions
         es_ex := 0.U
-    } .elsewhen (timer_int_r === 1.U) {
+    } .elsewhen (es_valid === 1.U && timer_int_r === 1.U) {
         // This may occur when the current instruction has finished all the operations while still waiting for the next instruction
         // so ex may only occur when this is a normal instruction (not an invalid slot) and when the exception occurs
         // before the instruction comes in
         es_ex := 1.U
-    } .elsewhen (/*(es_new_instr === 1.U && io.fs_ex === 1.U) |*/fs_ex_r === 1.U) {
+    } .elsewhen (/*(es_new_instr === 1.U && io.fs_ex === 1.U) |*/es_valid === 1.U && fs_ex_r === 1.U) {
         // exception from FS: misaligned instruction address
         es_ex := 1.U
-    } .elsewhen (es_ecall === 1.U) {
+    } .elsewhen (es_valid  === 1.U && es_ecall === 1.U) {
         es_ex := 1.U
-    } .elsewhen (inst_reserved === 1.U) {
+    } .elsewhen (es_valid === 1.U && inst_reserved === 1.U) {
         es_ex := 1.U
-    } .elsewhen (es_read_ex === 1.U) {
+    } .elsewhen (es_valid === 1.U && es_read_ex === 1.U) {
         es_ex := 1.U
-    } .elsewhen (es_write_ex === 1.U) {
+    } .elsewhen (es_valid === 1.U && es_write_ex === 1.U) {
         es_ex := 1.U
     } .otherwise {
         es_ex := 0.U
@@ -849,17 +886,17 @@ class CPU_EX extends Module {
     /*when (es_new_instr === 1.U && io.fs_ex === 1.U) {
         // exception from FS: misaligned instruction address
         es_excode := io.fs_excode
-    } .else*/when (fs_ex_r === 1.U) {
+    } .else*/when (es_valid === 1.U && fs_ex_r === 1.U) {
         es_excode := fs_excode_r
-    } .elsewhen (es_ecall === 1.U) {
+    } .elsewhen (es_valid  === 1.U && es_ecall === 1.U) {
         es_excode := excode_const.MEcall
-    } .elsewhen (inst_reserved === 1.U) {
+    } .elsewhen (es_valid  === 1.U && inst_reserved === 1.U) {
         es_excode := excode_const.IllegalInstruction
-    } .elsewhen (es_read_ex === 1.U) {
+    } .elsewhen (es_valid  === 1.U && es_read_ex === 1.U) {
         es_excode := excode_const.LoadAddrMisaligned
-    } .elsewhen (es_write_ex === 1.U) {
+    } .elsewhen (es_valid  === 1.U && es_write_ex === 1.U) {
         es_excode := excode_const.StoreAddrMisaligned
-    } .elsewhen (timer_int === 1.U) {
+    } .elsewhen (es_valid === 1.U && timer_int_r === 1.U) {
         es_excode := (0x80000007.S).asUInt()// excode_const.MachineTimerInt throws error here
     } .otherwise {
         es_excode := 0.U

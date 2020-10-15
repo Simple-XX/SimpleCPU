@@ -171,10 +171,11 @@ class CSR extends Module {
     val csr_mstatus = RegInit(reset_mstatus)
     // MTVEC
     val reset_mtvec = WireInit(0.U.asTypeOf(new mtvec))
+    reset_mtvec.base := 0x20000000.U
     val csr_mtvec = RegInit(reset_mtvec)
     // MIP
     val reset_mip = WireInit(0.U.asTypeOf(new mip))
-    reset_mip.MTIP := 1.U
+    reset_mip.MTIP := 0.U
     val csr_mip = RegInit(reset_mip)
     // MIE
     val reset_mie = WireInit(0.U.asTypeOf(new mie))
@@ -184,6 +185,7 @@ class CSR extends Module {
     val csr_mtime = RegInit(reset_mtime)
     // MTIMECMP
     val reset_mtimecmp = WireInit(0.U).asTypeOf(new mtimecmp)
+    reset_mtimecmp.hi := 0x7000000.U // avoid unexpected TIP
     val csr_mtimecmp = RegInit(reset_mtimecmp)
     // MSCRATCH
     val reset_mscratch = WireInit(0.U.asTypeOf(new mscratch))
@@ -289,17 +291,20 @@ class CSR extends Module {
     mtime_full := csr_mtime.asUInt()
     mtimecmp_full := csr_mtimecmp.asUInt()
     
+    val self_counter = RegInit(0.U(3.W)) // advance every eight cycles
+    
+    self_counter := self_counter + 1.U
     
     
     when (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MTIMELO) {
         csr_mtime.lo := io.es_csr_write_data
-    } .otherwise {
+    } .elsewhen (self_counter === 7.U) {
         csr_mtime.lo := mtime_next_full(31, 0)
     }
     
     when (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MTIMEHI) {
         csr_mtime.hi := io.es_csr_write_data
-    } .otherwise {
+    } .elsewhen (self_counter === 7.U) {
         csr_mtime.hi := mtime_next_full(63, 32)
     }
 
@@ -310,7 +315,7 @@ class CSR extends Module {
     }
     
     when (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MTIMECMPHI) {
-        csr_mtime.hi := io.es_csr_write_data
+        csr_mtimecmp.hi := io.es_csr_write_data
     }
 
     // MSCRATCH
@@ -329,8 +334,6 @@ class CSR extends Module {
 
     // MCAUSE
     // excode is generated in pipeline
-    csr_mcause.excode := RegInit(0.U)
-    csr_mcause.interrupt := RegInit(0.U)
     when (es_ex_once === 1.U) {
         csr_mcause.excode := io.es_excode(30, 0)
         csr_mcause.interrupt := io.es_excode(31)
@@ -377,6 +380,14 @@ class CSR extends Module {
         io.es_csr_read_data := csr_mcause.asUInt()
     } .elsewhen (io.es_csr_read_num === csr_consts.MTVAL) {
         io.es_csr_read_data := csr_mtval.asUInt()
+    } .elsewhen (io.es_csr_read_num === csr_consts.MTIMECMPHI) {
+        io.es_csr_read_data := csr_mtimecmp.hi.asUInt()
+    } .elsewhen (io.es_csr_read_num === csr_consts.MTIMECMPLO) {
+        io.es_csr_read_data := csr_mtimecmp.lo.asUInt()
+    } .elsewhen (io.es_csr_read_num === csr_consts.MTIMEHI) {
+        io.es_csr_read_data := csr_mtime.hi.asUInt()
+    } .elsewhen (io.es_csr_read_num === csr_consts.MTIMELO) {
+        io.es_csr_read_data := csr_mtime.lo.asUInt()
     } .otherwise {
         // WARNING: TEST ONLY
         io.es_csr_read_data := csr_mtime.asUInt()

@@ -41,7 +41,7 @@ class CPU_IF extends Module {
     val next_pc = Wire(UInt(32.W))
     val next_fs_ex = RegInit(0.U(1.W))
     val fs_ex = RegInit(0.U(1.W))
-    val fs_pc_r = RegInit((0xfffffffcL).U(32.W))
+    val fs_pc_r = RegInit((0x7ffffffcL).U(32.W))
     
     // some handy signals
     val addr_handshake = Wire(UInt(1.W))
