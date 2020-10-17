@@ -2,13 +2,20 @@ package Xim
 
 import chisel3._
 
-object SoC_Main extends App {
+object SoC_Main_Type_One extends App {
     iotesters.Driver.execute(args, () => new SoC) {
-        c => new SoC_UnitTester(c)
+        c => new SoC_UnitTester_Type1(c)
     }
-    /*
-    iotesters.Driver.execute(args, () => new CPU_Core) {
-        c => new CPU_Core_Arithmetic_UnitTester(c)
+}
+
+object SoC_Main_Type_Two extends App {
+    iotesters.Driver.execute(args, () => new SoC) {
+        c => new SoC_UnitTester_Type2(c)
     }
-     */
+}
+
+object SoC_Main_Type_Three extends App {
+    iotesters.Driver.execute(args, () => new SoC) {
+        c => new SoC_UnitTester_Type3(c)
+    }
 }

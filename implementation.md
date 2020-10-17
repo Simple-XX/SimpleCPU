@@ -29,11 +29,11 @@ We use 0x7c0 as `mtimelo`, 0x7c1 as `mtimehi`, 0x7c2 as `mtimecmplo`, 0x7c3 as `
 
 CSRRW ALU: rs1 + 0-> CSR CSR->rd
 CSRRS ALU: rs1 or CSR -> CSR CSR->rd
-CSRRC ALU: rs1 xor CSR -> CSR CSR->rd
+CSRRC ALU: ~rs1 and CSR -> CSR CSR->rd
 
 CSRRWI: ALU: imm + 0 -> CSR CSR->rd
 CSRRSI: ALU: imm or CSR -> CSR CSR->rd
-CSRRCI: ALU: imm xor CSR -> CSR CSR->rd
+CSRRCI: ALU: ~imm and CSR -> CSR CSR->rd
 
 ### Exception related
 
