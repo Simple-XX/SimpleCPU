@@ -176,7 +176,7 @@ class CPU_EX extends Module {
     val inst_reserved = Wire(UInt(1.W)) // reserved instruction
     val es_ecall = Wire(UInt(1.W))
     
-    when(es_load === 1.U || es_store === 1.U) {
+    when((es_load === 1.U || es_store === 1.U) && es_ex === 0.U) {
         es_ready_go := es_data_handshake | es_data_handshake_r
     }.otherwise {
         es_ready_go := 1.U
@@ -591,13 +591,13 @@ class CPU_EX extends Module {
     
     when (es_addr_handshake === 1.U) {
         es_read_r := 0.U
-    } .elsewhen (es_load === 1.U && es_read_set === 0.U) {
+    } .elsewhen (es_load === 1.U && es_read_set === 0.U && es_ex === 0.U) {
         es_read_r := 1.U
     }
     
     when (es_addr_handshake === 1.U) {
         es_write_r := 0.U
-    } .elsewhen (es_store === 1.U && es_write_set === 0.U) {
+    } .elsewhen (es_store === 1.U && es_write_set === 0.U && es_ex === 0.U) {
         es_write_r := 1.U
     }
     
@@ -675,7 +675,9 @@ class CPU_EX extends Module {
     reg_waddr := rd
     
     // note that load instructions may only write when load data is returned
-    when(es_load === 1.U && (es_data_handshake === 1.U || es_data_handshake_r === 1.U) && es_new_instr === 1.U) {
+    when (es_ex === 1.U) {
+        reg_wen := 0.U
+    } .elsewhen(es_load === 1.U && (es_data_handshake === 1.U || es_data_handshake_r === 1.U) && es_new_instr === 1.U) {
         // TODO: revise proper condition here
         // Problem here: the reg will continue to write even after the first written
         // The current condition indicates that if our instruction is not a load, it should go directly into the write
@@ -744,7 +746,7 @@ class CPU_EX extends Module {
     
     CSR_write_data := alu_result
     
-    when (es_csr === 1.U && es_new_instr === 1.U) {
+    when (es_csr === 1.U && es_new_instr === 1.U && es_ex === 0.U) {
         CSR_write := 1.U
     } .otherwise {
         CSR_write := 0.U
