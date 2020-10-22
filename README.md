@@ -43,9 +43,10 @@ EX级进行指令译码执行访存写回，若为访存指令则发出访存请
 
 ### TODO
 
-1. 异常时指令重复执行bug修复
-2. 分支预测器
-3. 测试框架进一步完善
+1. 分支预测器
+2. 测试框架进一步完善
+
+**Note that any branch other than `release` is not stable, functions may break without warning.**
 
 ## 运行RT-Thread
 

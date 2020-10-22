@@ -65,3 +65,37 @@ This is fine with the normal user instructions already. While for an exception r
 weird conditions like mepc is written with an unexpected instruction.
 For our naive design, an instruction follwing the branch will not trigger any exception itself 
 so we do not handle exceptions. For the external exceptions, we will handle them when we are out of this condition
+
+### Virtual Memory Ralated
+
+As long as there are no tlb related definiations in RISC-V spec, I will design my own tlb format for internal usage.
+
+#### TLB entry format
+
+**sv39 mode only**
+
+| page size |  VPN |  PPN   | DAGUXWRV |
+| --------- | ---- | ------ | -------- |
+|    2      | 27   | 44     |    8     |
+
+##### page size
+
+0: 4KB record
+1: 2MB record
+2: 1GB record
+3: reserved
+
+##### DAGUXWRY
+
+Not implemented for now
+
+##### Translation process:
+We divide VPN into three part: VPN2(9) VPN1(9) VPN0(9), PPN into three part: PPN2(26) PPN1(9) PPN0(9).
+
+Vaddr(11, 0) -> always keep untouched
+
+**4KB record**:Vaddr(38, 12) -> throw to match, Paddr: PPN2 || PPN1 || PPN(0) || Vaddr(11, 0)
+**2MB record**:Vaddr(38, 21) -> throw to match, Vaddr(20, 12) keep untouched, Paddr: PPN2 || PPN1 || Vaddr(20, 0)
+**1GB record**:Vaddr(38, 30) -> throw to match, Vaddr(29, 12) keep untouched, Paddr: PPN2 || Vaddr(29, 0)
+
+TLB retire algorithm: loop queue
