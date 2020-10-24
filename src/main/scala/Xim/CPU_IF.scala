@@ -28,6 +28,11 @@ class CPU_IF extends Module {
         val ex_valid = Input(UInt(1.W))
         val ex_target = Input(UInt(32.W))
         
+        // from branch predicter
+        val next_branch = Input(UInt(1.W))
+        
+        // handled in es
+        val es_next_branch = Output(UInt(1.W))
     })
     
     
@@ -51,6 +56,13 @@ class CPU_IF extends Module {
     val inst_req_valid_r = RegInit(0.U(1.W))
     val inst_ack_r = RegInit(0.U(1.W))
     val fs_inst_r = Reg(UInt(32.W))
+    
+    // for branch prediction
+    val is_br = Wire(UInt(1.W))
+    val is_jmp = Wire(UInt(1.W))
+    val this_br_target = Wire(UInt(32.W))
+    
+    val next_branch = RegInit(0.U)
     
     // Instruction misaligned has excode 0
     io.fs_excode := excode_const.InstructionMisaligned // the only possible exception here
@@ -79,11 +91,13 @@ class CPU_IF extends Module {
     
     io.fs_pc := fs_pc_r
     
-    when(io.ex_valid === 1.U) {
+    when (io.ex_valid === 1.U) {
         next_pc := io.ex_target
-    }.elsewhen(io.br_valid === 1.U) {
+    } .elsewhen (io.br_valid === 1.U) {
         next_pc := io.br_target
-    }.otherwise {
+    } .elsewhen (is_jmp === 1.U || (is_br === 1.U && next_branch === 1.U)) {
+        next_pc := this_br_target
+    } .otherwise {
         next_pc := fs_pc_r + 4.U;
     }
     
@@ -93,7 +107,10 @@ class CPU_IF extends Module {
         // TODO: check maybe the update should happen when we are able to move to the next stage
         fs_pc_r := next_pc
         fs_ex := next_fs_ex
+        next_branch := io.next_branch
     }
+    
+    io.es_next_branch := next_branch
     io.fs_ex := fs_ex
     
     when(io.ex_valid === 1.U) {
@@ -142,6 +159,13 @@ class CPU_IF extends Module {
     // printf("inst fetched in IF = %x addr_handshake = %d data_handshake = %d " +
     //  "branch_valid = %d branch target = %x\n", io.inst_data, addr_handshake, data_handshake, io.br_valid, io.br_target)
     
+    val branch_target_gen = Module(new branch_target)
+    branch_target_gen.io.IF_instr := io.inst_data
+    branch_target_gen.io.IF_instr_valid := data_handshake
+    branch_target_gen.io.IF_pc := fs_pc_r
+    is_br := branch_target_gen.io.is_br
+    is_jmp := branch_target_gen.io.is_jmp
+    this_br_target := branch_target_gen.io.br_target
     
 }
 

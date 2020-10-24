@@ -34,6 +34,11 @@ class CPU_EX extends Module {
         val ex_valid = Output(UInt(1.W))
         val ex_target = Output(UInt(32.W))
         
+        // for branch prediction
+        val branch_new_instr = Output(UInt(1.W))
+        val branch_br_taken = Output(UInt(1.W))
+        val es_next_branch = Input(UInt(1.W))
+        
         // for debug
         val es_reg_wen = Output(UInt(1.W))
         val es_reg_waddr = Output(UInt(5.W))
@@ -69,6 +74,7 @@ class CPU_EX extends Module {
     val es_excode = Wire(UInt(32.W))
     val es_new_instr = Wire(UInt(1.W))
     val es_new_instr_r = RegInit(0.U(1.W))
+    val es_next_branch = RegInit(0.U(1.W))
     
     io.es_instr := es_instr
     io.es_pc := es_pc
@@ -99,6 +105,7 @@ class CPU_EX extends Module {
     val rs1_less_rs2_unsigned = Wire(UInt(1.W))
     val rs1_less_rs2_signed = Wire(UInt(1.W))
     val br_taken = Wire(UInt(1.W))
+    val br_miss = Wire(UInt(1.W))
     val inst_reload = Wire(UInt(1.W))
     val inst_reload_no_ex = Wire(UInt(1.W))
     val beq_taken = Wire(UInt(1.W))
@@ -251,8 +258,10 @@ class CPU_EX extends Module {
     
     when(es_new_instr === 1.U && inst_reload === 1.U) {
         es_instr := 0x00000033.U // provide a nop instruction (add zero, zero, zero)
+        es_next_branch := io.es_next_branch
     }.elsewhen(es_new_instr === 1.U) {
         es_instr := io.fs_inst
+        es_next_branch := io.es_next_branch
     }
     
     es_new_instr_r := es_new_instr
@@ -641,16 +650,22 @@ class CPU_EX extends Module {
     bltu_taken := inst_bltu === 1.U && rs1_less_rs2_unsigned === 1.U
     bgeu_taken := inst_bgeu === 1.U && rs1_less_rs2_unsigned === 0.U
     
-    br_taken := beq_taken | bne_taken | blt_taken | bge_taken | bltu_taken | bgeu_taken
+    val branch_taken_condition = Wire(UInt(1.W))
+    
+    branch_taken_condition := beq_taken | bne_taken | blt_taken | bge_taken | bltu_taken | bgeu_taken
+    br_taken := inst_b & branch_taken_condition & (es_next_branch === 0.U)
+    br_miss := (inst_b) & (~branch_taken_condition) & (es_next_branch === 1.U) & (~inst_j)
     
     // TODO: consider ex related
-    inst_reload_no_ex := br_taken | inst_jal | inst_jalr | inst_mret
+    inst_reload_no_ex := br_taken | br_miss | /*inst_jal |*/ inst_jalr | inst_mret
     inst_reload := inst_reload_no_ex | es_ex
     io.br_valid := inst_reload
     
-    when(br_taken === 1.U || inst_jal === 1.U | inst_jalr === 1.U) {
+    when(br_taken === 1.U /*|| inst_jal === 1.U*/ || inst_jalr === 1.U) {
         io.br_target := alu_result
         // printf(p"Branch taken, target = ${io.br_target}")
+    } .elsewhen (br_miss === 1.U) {
+        io.br_target := es_pc + 4.U
     } .elsewhen (inst_mret === 1.U) {
         io.br_target := CSR_mepc
     } .otherwise {
@@ -905,6 +920,14 @@ class CPU_EX extends Module {
     }
     
     io.ex_valid := es_ex
+    
+    // branch prediction
+    io.branch_new_instr := es_new_instr & inst_b
+    when (es_new_instr === 1.U) {
+        io.branch_br_taken := branch_taken_condition
+    } .otherwise {
+        io.branch_br_taken := 0.U
+    }
     
     
     

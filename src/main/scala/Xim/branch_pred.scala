@@ -7,14 +7,16 @@ class branch_pred extends Module {
         // whether IF should fetch br target
         val IF_next_branch = Output(UInt(1.W))
         // as the valid condition for EX_taken
-        val EX_new_instr_r = Input(UInt(1.W))
-        val EX_taken = Input(UInt(1.W))
+        val EX_new_instr = Input(UInt(1.W))
+        // note that a taken of unconditional jmp is not taken into account
+        // since that they will never cause an empty slot in pipeline
+        val EX_br_taken = Input(UInt(1.W))
     })
     val pred_counter = RegInit(0.U(2.W))
-    when (io.EX_new_instr_r === 1.U && io.EX_taken === 1.U && pred_counter != 3.U) {
+    when (io.EX_new_instr === 1.U && io.EX_br_taken === 1.U && pred_counter != 3.U) {
         // if the counter is not currently full and a new taken come in
         pred_counter := pred_counter + 1.U
-    } .elsewhen (io.EX_new_instr_r === 1.U && io.EX_taken === 1.U) {
+    } .elsewhen (io.EX_new_instr === 1.U && io.EX_br_taken === 0.U) {
         // if the counter is not empty and a new not taken come in
         pred_counter := pred_counter - 1.U
     }
@@ -29,8 +31,11 @@ class branch_pred extends Module {
 class branch_target extends Module {
     val io = IO(new Bundle{
         val IF_instr = Input(UInt(32.W))
+        // refers to new data handshake
+        val IF_instr_valid = Input(UInt(32.W))
         val IF_pc = Input(UInt(32.W))
         val is_br = Output(UInt(1.W))
+        val is_jmp = Output(UInt(1.W))
         val br_target = Output(UInt(32.W))
     })
     // note that we handle jal beq bne blt bge bltu bgeu
@@ -48,8 +53,20 @@ class branch_target extends Module {
     val inst_b = Wire(UInt(1.W))
     val inst_j = Wire(UInt(1.W))
     
-    opcode := io.IF_instr(6, 0)
-    funct3 := io.IF_instr(14, 12)
+    val instr_r = RegInit(0.U(32.W))
+    val pred_valid = Wire(UInt(1.W))
+    
+    // able to provide a consistent signal for instr as soon as new instr comes
+    val instr_consistent = Wire(UInt(32.W))
+    
+    instr_consistent := instr_r
+    
+    when (io.IF_instr_valid === 1.U) {
+        instr_r := io.IF_instr
+    }
+    
+    opcode := instr_consistent(6, 0)
+    funct3 := instr_consistent(14, 12)
     val opcode_decoder: decoder_7_128 = Module(new decoder_7_128)
     val funct3_decoder: decoder_3_8 = Module(new decoder_3_8)
     opcode_decoder.io.in := opcode
@@ -74,11 +91,39 @@ class branch_target extends Module {
     
     io.is_br := inst_jal | inst_beq | inst_bne | inst_blt | inst_bge | inst_bltu | inst_bgeu
     when (inst_jal === 1.U) {
-        io.br_target := jal_target
+        io.br_target := jal_target + io.IF_pc
     } .otherwise {
-        io.br_target := branch_target
+        io.br_target := branch_target + io.IF_pc
     }
-    // todo:
-    jal_target := 0.U
-    branch_target := 0.U
+    
+    // jal instruction will always jump so ignore the counter
+    pred_valid := inst_b === 1.U
+    
+    
+    io.is_br := inst_b
+    io.is_jmp := inst_j
+
+    val B_imm_b = Wire(new B_imm_bundle)
+    val J_imm_b = Wire(new J_imm_bundle)
+    val B_imm = Wire(SInt(32.W)) // sign extend
+    val J_imm = Wire(SInt(32.W)) // sign extend
+    B_imm := (B_imm_b.asUInt).asSInt()
+    J_imm := (J_imm_b.asUInt).asSInt()
+    
+    B_imm_b.inst_31 := instr_consistent(31)
+    B_imm_b.inst_7 := instr_consistent(7)
+    B_imm_b.inst_30_25 := instr_consistent(30, 25)
+    B_imm_b.inst_11_8 := instr_consistent(11, 8)
+    B_imm_b.zero := 0.U
+    
+    J_imm_b.inst_31 := instr_consistent(31)
+    J_imm_b.inst_19_12 := instr_consistent(19, 12)
+    J_imm_b.inst_20 := instr_consistent(20)
+    J_imm_b.inst_30_25 := instr_consistent(30, 25)
+    J_imm_b.inst_24_21 := instr_consistent(24, 21)
+    J_imm_b.zero := 0.U
+    
+    jal_target := J_imm.asUInt()
+    branch_target := B_imm.asUInt()
+    
 }

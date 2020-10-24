@@ -65,6 +65,7 @@ class CPU_Core extends Module {
     EX_Stage.io.fs_ex := IF_Stage.io.fs_ex
     EX_Stage.io.fs_excode := IF_Stage.io.fs_excode
     EX_Stage.io.fs_to_es_valid := IF_Stage.io.fs_to_es_valid
+    EX_Stage.io.es_next_branch := IF_Stage.io.es_next_branch
     
     IF_Stage.io.inst_reload := EX_Stage.io.inst_reload
     IF_Stage.io.es_allowin := EX_Stage.io.es_allowin
@@ -73,6 +74,11 @@ class CPU_Core extends Module {
     IF_Stage.io.ex_valid := EX_Stage.io.ex_valid
     IF_Stage.io.ex_target := EX_Stage.io.ex_target
     
+    val branch_predicter = Module(new branch_pred)
+    
+    IF_Stage.io.next_branch := branch_predicter.io.IF_next_branch
+    branch_predicter.io.EX_new_instr := EX_Stage.io.branch_new_instr
+    branch_predicter.io.EX_br_taken := EX_Stage.io.branch_br_taken
 }
 
 object CPU_Core extends App {
