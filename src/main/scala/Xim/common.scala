@@ -61,6 +61,13 @@ class decoder_7_128 extends Module {
     io.out := tmp.asUInt
 }
 
+class encoder(input_len: Int) extends Module {
+    val io = IO(new Bundle{
+        val in = Input(input_len.asUInt())
+        val out = Output(UInt())
+    })
+}
+
 class decoder_3_8 extends Module {
     val io = IO(new Bundle {
         val in = Input(UInt(3.W))

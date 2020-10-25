@@ -14,7 +14,7 @@ class RegFile (readPorts: Int) extends Module{
 
  val regs = RegInit(VecInit(Seq.fill(32)(0.U(32.W))))
 
- when(io.wen & io.waddr != 0.U){
+ when(io.wen & io.waddr =/= 0.U){
    regs(io.waddr) := io.wdata
  }
 
