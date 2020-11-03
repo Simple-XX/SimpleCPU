@@ -4,19 +4,19 @@ import chisel3._
 
 
 
-class SoC extends Module {
+class SoC(val rv_width: Int = 64) extends Module {
     val io = IO(new Bundle {
         val reg_wen = Output(UInt(1.W))
-        val reg_wdata = Output(UInt(32.W))
+        val reg_wdata = Output(UInt(rv_width.W))
         val reg_waddr = Output(UInt(5.W))
         val es_instr = Output(UInt(32.W))
-        val es_pc = Output(UInt(32.W))
-        val es_reg_a0 = Output(UInt(32.W))
+        val es_pc = Output(UInt(rv_width.W))
+        val es_reg_a0 = Output(UInt(rv_width.W))
     })
     
     
-    val Core = Module(new CPU_Core)
-    val CPU_Bridge = Module(new AXI_Bridge(32))
+    val Core = Module(new CPU_Core(64))
+    val CPU_Bridge = Module(new AXI_Bridge(64))
     CPU_Bridge.io.clock := clock
     CPU_Bridge.io.reset := reset
     

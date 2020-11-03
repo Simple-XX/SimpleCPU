@@ -1,22 +1,22 @@
 package Xim
 
 import chisel3._
-import chisel3.util.Fill
+import chisel3.util.{Fill, Cat}
 
 object excode_const extends ExceptionConstants
 
-class CPU_EX extends Module {
+class CPU_EX(val rv_width: Int = 64) extends Module {
     val io = IO(new Bundle {
-        val data_addr = Output(UInt(32.W))
+        val data_addr = Output(UInt(rv_width.W))
         val data_write = Output(UInt(1.W))
         val data_read = Output(UInt(1.W))
         val data_size = Output(UInt(2.W))
         
-        val data_write_data = Output(UInt(32.W))
+        val data_write_data = Output(UInt(rv_width.W))
         
         val data_req_ack = Input(UInt(1.W))
         
-        val data_read_data = Input(UInt(32.W))
+        val data_read_data = Input(UInt(rv_width.W))
         val data_read_valid = Input(UInt(1.W))
         val data_data_ack = Output(UInt(1.W))
         
@@ -24,15 +24,15 @@ class CPU_EX extends Module {
         val inst_reload = Output(UInt(1.W))
         
         val fs_to_es_valid = Input(UInt(1.W))
-        val fs_pc = Input(UInt(32.W))
+        val fs_pc = Input(UInt(rv_width.W))
         val fs_inst = Input(UInt(32.W))
         val fs_ex = Input(UInt(1.W))
         val fs_excode = Input(UInt(5.W))
         
         val br_valid = Output(UInt(1.W))
-        val br_target = Output(UInt(32.W))
+        val br_target = Output(UInt(rv_width.W))
         val ex_valid = Output(UInt(1.W))
-        val ex_target = Output(UInt(32.W))
+        val ex_target = Output(UInt(rv_width.W))
         
         // for branch prediction
         val branch_new_instr = Output(UInt(1.W))
@@ -42,11 +42,11 @@ class CPU_EX extends Module {
         // for debug
         val es_reg_wen = Output(UInt(1.W))
         val es_reg_waddr = Output(UInt(5.W))
-        val es_reg_wdata = Output(UInt(32.W))
-        val es_reg_a0 = Output(UInt(32.W))
+        val es_reg_wdata = Output(UInt(rv_width.W))
+        val es_reg_a0 = Output(UInt(rv_width.W))
         
         val es_instr = Output(UInt(32.W))
-        val es_pc = Output(UInt(32.W))
+        val es_pc = Output(UInt(rv_width.W))
     })
     
     // hmmmm may not be useful
@@ -68,10 +68,10 @@ class CPU_EX extends Module {
     val es_valid = RegInit(0.U(1.W))
     // es_allowin as Output
     val es_ready_go = Wire(UInt(1.W))
-    val es_pc = Reg(UInt(32.W))
+    val es_pc = Reg(UInt(rv_width.W))
     val es_instr = Reg(UInt(32.W))
     val es_ex = Wire(UInt(1.W))
-    val es_excode = Wire(UInt(32.W))
+    val es_excode = Wire(UInt(rv_width.W))
     val es_new_instr = Wire(UInt(1.W))
     val es_new_instr_r = RegInit(0.U(1.W))
     val es_next_branch = RegInit(0.U(1.W))
@@ -81,24 +81,24 @@ class CPU_EX extends Module {
     
     val CSR_module = Module(new CSR)
     val CSR_ex = Wire(UInt(1.W))
-    val CSR_excode = Wire(UInt(32.W))
-    val CSR_epc = Wire(UInt(32.W))
-    val CSR_badaddr = Wire(UInt(32.W))
+    val CSR_excode = Wire(UInt(rv_width.W))
+    val CSR_epc = Wire(UInt(rv_width.W))
+    val CSR_badaddr = Wire(UInt(rv_width.W))
     val CSR_write = Wire(UInt(1.W))
     val CSR_read_num = Wire(UInt(12.W))
     val CSR_write_num = Wire(UInt(12.W))
-    val CSR_write_data = Wire(UInt(32.W))
-    val CSR_read_data = Wire(UInt(32.W))
-    val CSR_mtvec = Wire(UInt(32.W))
-    val CSR_mip = Wire(UInt(32.W))
-    val CSR_mie = Wire(UInt(32.W))
-    val CSR_mstatus_mie = Wire(UInt(32.W))
+    val CSR_write_data = Wire(UInt(rv_width.W))
+    val CSR_read_data = Wire(UInt(rv_width.W))
+    val CSR_mtvec = Wire(UInt(rv_width.W))
+    val CSR_mip = Wire(UInt(rv_width.W))
+    val CSR_mie = Wire(UInt(rv_width.W))
+    val CSR_mstatus_mie = Wire(UInt(rv_width.W))
     val es_csr = Wire(UInt(1.W))
     val timer_int = Wire(UInt(1.W))
     val timer_int_r = RegInit(0.U(1.W))
-    val CSR_fault_addr = Wire(UInt(32.W))
-    val CSR_fault_instr = Wire(UInt(32.W))
-    val CSR_mepc = Wire(UInt(32.W))
+    val CSR_fault_addr = Wire(UInt(rv_width.W))
+    val CSR_fault_instr = Wire(UInt(rv_width.W))
+    val CSR_mepc = Wire(UInt(rv_width.W))
     
     // branch related
     val rs1_equal_rs2 = Wire(UInt(1.W))
@@ -132,54 +132,66 @@ class CPU_EX extends Module {
     
     // branch and jump is finished in a cycle
     
-    val inst_lui = Wire(UInt(1.W))
-    val inst_auipc = Wire(UInt(1.W))
-    val inst_jal = Wire(UInt(1.W))
-    val inst_jalr = Wire(UInt(1.W))
-    val inst_beq = Wire(UInt(1.W))
-    val inst_bne = Wire(UInt(1.W))
-    val inst_blt = Wire(UInt(1.W))
-    val inst_bge = Wire(UInt(1.W))
-    val inst_bltu = Wire(UInt(1.W))
-    val inst_bgeu = Wire(UInt(1.W))
-    val inst_lb = Wire(UInt(1.W))
-    val inst_lh = Wire(UInt(1.W))
-    val inst_lw = Wire(UInt(1.W))
-    val inst_lbu = Wire(UInt(1.W))
-    val inst_lhu = Wire(UInt(1.W))
-    val inst_sb = Wire(UInt(1.W))
-    val inst_sh = Wire(UInt(1.W))
-    val inst_sw = Wire(UInt(1.W))
-    val inst_addi = Wire(UInt(1.W))
-    val inst_slti = Wire(UInt(1.W))
-    val inst_sltiu = Wire(UInt(1.W))
-    val inst_xori = Wire(UInt(1.W))
-    val inst_ori = Wire(UInt(1.W))
-    val inst_andi = Wire(UInt(1.W))
-    val inst_slli = Wire(UInt(1.W))
-    val inst_srli = Wire(UInt(1.W))
-    val inst_srai = Wire(UInt(1.W))
-    val inst_add = Wire(UInt(1.W))
-    val inst_sub = Wire(UInt(1.W))
-    val inst_sll = Wire(UInt(1.W))
-    val inst_slt = Wire(UInt(1.W))
-    val inst_sltu = Wire(UInt(1.W))
-    val inst_xor = Wire(UInt(1.W))
-    val inst_srl = Wire(UInt(1.W))
-    val inst_sra = Wire(UInt(1.W))
-    val inst_or = Wire(UInt(1.W))
-    val inst_and = Wire(UInt(1.W))
-    val inst_fence = Wire(UInt(1.W))
-    val inst_ecall = Wire(UInt(1.W))
-    val inst_ebreak = Wire(UInt(1.W))
-    val inst_csrrw = Wire(UInt(1.W))
-    val inst_csrrs = Wire(UInt(1.W))
-    val inst_csrrc = Wire(UInt(1.W))
-    val inst_csrrwi = Wire(UInt(1.W))
-    val inst_csrrsi = Wire(UInt(1.W))
-    val inst_csrrci = Wire(UInt(1.W))
-    val inst_fence_i = Wire(UInt(1.W))
-    val inst_mret = Wire(UInt(1.W))
+    lazy val inst_lui = Wire(UInt(1.W))
+    lazy val inst_auipc = Wire(UInt(1.W))
+    lazy val inst_jal = Wire(UInt(1.W))
+    lazy val inst_jalr = Wire(UInt(1.W))
+    lazy val inst_beq = Wire(UInt(1.W))
+    lazy val inst_bne = Wire(UInt(1.W))
+    lazy val inst_blt = Wire(UInt(1.W))
+    lazy val inst_bge = Wire(UInt(1.W))
+    lazy val inst_bltu = Wire(UInt(1.W))
+    lazy val inst_bgeu = Wire(UInt(1.W))
+    lazy val inst_lb = Wire(UInt(1.W))
+    lazy val inst_lh = Wire(UInt(1.W))
+    lazy val inst_lw = Wire(UInt(1.W))
+    lazy val inst_lwu = Wire(UInt(1.W))
+    lazy val inst_ld = Wire(UInt(1.W))
+    lazy val inst_lbu = Wire(UInt(1.W))
+    lazy val inst_lhu = Wire(UInt(1.W))
+    lazy val inst_sb = Wire(UInt(1.W))
+    lazy val inst_sh = Wire(UInt(1.W))
+    lazy val inst_sw = Wire(UInt(1.W))
+    lazy val inst_sd = Wire(UInt(1.W))
+    lazy val inst_addi = Wire(UInt(1.W))
+    lazy val inst_addiw = Wire(UInt(1.W))
+    lazy val inst_slliw = Wire(UInt(1.W))
+    lazy val inst_srliw = Wire(UInt(1.W))
+    lazy val inst_sraiw = Wire(UInt(1.W))
+    lazy val inst_addw = Wire(UInt(1.W))
+    lazy val inst_subw = Wire(UInt(1.W))
+    lazy val inst_sllw = Wire(UInt(1.W))
+    lazy val inst_srlw = Wire(UInt(1.W))
+    lazy val inst_sraw = Wire(UInt(1.W))
+    lazy val inst_slti = Wire(UInt(1.W))
+    lazy val inst_sltiu = Wire(UInt(1.W))
+    lazy val inst_xori = Wire(UInt(1.W))
+    lazy val inst_ori = Wire(UInt(1.W))
+    lazy val inst_andi = Wire(UInt(1.W))
+    lazy val inst_slli = Wire(UInt(1.W))
+    lazy val inst_srli = Wire(UInt(1.W))
+    lazy val inst_srai = Wire(UInt(1.W))
+    lazy val inst_add = Wire(UInt(1.W))
+    lazy val inst_sub = Wire(UInt(1.W))
+    lazy val inst_sll = Wire(UInt(1.W))
+    lazy val inst_slt = Wire(UInt(1.W))
+    lazy val inst_sltu = Wire(UInt(1.W))
+    lazy val inst_xor = Wire(UInt(1.W))
+    lazy val inst_srl = Wire(UInt(1.W))
+    lazy val inst_sra = Wire(UInt(1.W))
+    lazy val inst_or = Wire(UInt(1.W))
+    lazy val inst_and = Wire(UInt(1.W))
+    lazy val inst_fence = Wire(UInt(1.W))
+    lazy val inst_ecall = Wire(UInt(1.W))
+    lazy val inst_ebreak = Wire(UInt(1.W))
+    lazy val inst_csrrw = Wire(UInt(1.W))
+    lazy val inst_csrrs = Wire(UInt(1.W))
+    lazy val inst_csrrc = Wire(UInt(1.W))
+    lazy val inst_csrrwi = Wire(UInt(1.W))
+    lazy val inst_csrrsi = Wire(UInt(1.W))
+    lazy val inst_csrrci = Wire(UInt(1.W))
+    lazy val inst_fence_i = Wire(UInt(1.W))
+    lazy val inst_mret = Wire(UInt(1.W))
     val inst_reserved = Wire(UInt(1.W)) // reserved instruction
     val es_ecall = Wire(UInt(1.W))
     
@@ -208,20 +220,21 @@ class CPU_EX extends Module {
     val rs2 = Wire(UInt(5.W))
     val rd = Wire(UInt(5.W))
     
-    val I_imm = Wire(SInt(32.W)) // sign extend
-    val S_imm = Wire(SInt(32.W)) // sign extend
-    val B_imm = Wire(SInt(32.W)) // sign extend
-    val U_imm = Wire(UInt(32.W)) // imm to upper
-    val J_imm = Wire(SInt(32.W)) // sign extend
-    val Csr_imm = Wire(UInt(32.W)) // zero extend
-    val Csr_imm_tmp = Wire(UInt(32.W)) // make sure cast to 32 bit
+    val I_imm = Wire(SInt(rv_width.W)) // sign extend
+    val S_imm = Wire(SInt(rv_width.W)) // sign extend
+    val B_imm = Wire(SInt(rv_width.W)) // sign extend
+    val U_imm = Wire(UInt(rv_width.W)) // sign extend, imm to upper
+    val U_imm_s = Wire(SInt(rv_width.W))
+    val J_imm = Wire(SInt(rv_width.W)) // sign extend
+    val Csr_imm = Wire(UInt(rv_width.W)) // zero extend
+    val Csr_imm_tmp = Wire(UInt(rv_width.W)) // make sure cast to rv_width bit
     val Csr_num = Wire(UInt(12.W)) // exactly
     val I_imm_b = Wire(new I_imm_bundle)
     val S_imm_b = Wire(new S_imm_bundle)
     val B_imm_b = Wire(new B_imm_bundle)
     val U_imm_b = Wire(new U_imm_bundle)
     val J_imm_b = Wire(new J_imm_bundle)
-    val inst_imm = Wire(UInt(32.W))
+    val inst_imm = Wire(UInt(rv_width.W))
     val inst_i = Wire(UInt(1.W))
     val inst_s = Wire(UInt(1.W))
     val inst_b = Wire(UInt(1.W))
@@ -229,12 +242,15 @@ class CPU_EX extends Module {
     val inst_j = Wire(UInt(1.W))
     val inst_r = Wire(UInt(1.W))
     
-    inst_i := inst_mret | inst_jalr | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_addi | inst_slti | inst_sltiu | inst_xori | inst_ori | inst_andi | inst_fence_i
-    inst_s := inst_sb | inst_sh | inst_sw
+    inst_i := inst_mret | inst_jalr | inst_lb | inst_lh | inst_lw | inst_lwu | inst_ld | inst_lbu | inst_lhu |
+      inst_addi | inst_addiw | inst_slti | inst_sltiu | inst_xori | inst_ori | inst_andi | inst_fence_i
+    inst_s := inst_sb | inst_sh | inst_sw | inst_sd
     inst_b := inst_beq | inst_bne | inst_blt | inst_bge | inst_bltu | inst_bgeu
     inst_u := inst_lui | inst_auipc
     inst_j := inst_jal
-    inst_r := inst_slli | inst_srli | inst_srai | inst_add | inst_sub | inst_sll | inst_slt | inst_sltu | inst_xor | inst_srl | inst_sra | inst_or | inst_and
+    inst_r := inst_slli | inst_slliw | inst_srli | inst_srliw | inst_srai | inst_sraiw |
+      inst_add | inst_addw | inst_sub | inst_subw | inst_sll | inst_sllw | inst_slt | inst_sltu | inst_xor | inst_srl | inst_srlw |
+      inst_sra | inst_sraw | inst_or | inst_and
     
     when(inst_i === 1.U) {
         inst_imm := I_imm.asUInt
@@ -292,7 +308,8 @@ class CPU_EX extends Module {
     I_imm := (I_imm_b.asUInt).asSInt()
     S_imm := (S_imm_b.asUInt).asSInt()
     B_imm := (B_imm_b.asUInt).asSInt()
-    U_imm := U_imm_b.asUInt
+    U_imm_s := (U_imm_b.asUInt).asSInt()
+    U_imm := U_imm_s.asUInt()
     J_imm := (J_imm_b.asUInt).asSInt()
     
     when (inst_csrrci === 1.U) {
@@ -361,19 +378,31 @@ class CPU_EX extends Module {
     inst_lb := (opcode_d(0x3) === 1.U) && (funct3_d(0) === 1.U)
     inst_lh := (opcode_d(0x3) === 1.U) && (funct3_d(1) === 1.U)
     inst_lw := (opcode_d(0x3) === 1.U) && (funct3_d(2) === 1.U)
+    inst_lwu := (opcode_d(0x3) === 1.U) && (funct3_d(6) === 1.U)
+    inst_ld := (opcode_d(0x3) === 1.U) && (funct3_d(3) === 1.U)
     inst_lbu := (opcode_d(0x3) === 1.U) && (funct3_d(4) === 1.U)
     inst_lhu := (opcode_d(0x3) === 1.U) && (funct3_d(5) === 1.U)
     inst_sb := (opcode_d(0x23) === 1.U) && (funct3_d(0) === 1.U)
     inst_sh := (opcode_d(0x23) === 1.U) && (funct3_d(1) === 1.U)
     inst_sw := (opcode_d(0x23) === 1.U) && (funct3_d(2) === 1.U)
+    inst_sd := (opcode_d(0x23) === 1.U) && (funct3_d(3) === 1.U)
     inst_addi := (opcode_d(0x13) === 1.U) && (funct3_d(0) === 1.U)
+    inst_addiw := (opcode_d(0x1b) === 1.U) && (funct3_d(0) === 1.U)
+    inst_slliw := (opcode_d(0x1b) === 1.U) && (funct3_d(1) === 1.U) && (funct7_d(0) === 1.U)
+    inst_srliw := (opcode_d(0x1b) === 1.U) && (funct3_d(5) === 1.U) && (funct7_d(0) === 1.U)
+    inst_sraiw := (opcode_d(0x1b) === 1.U) && (funct3_d(5) === 1.U) && (funct7_d(0x20) === 1.U)
+    inst_addw := (opcode_d(0x3b) === 1.U) && (funct3_d(0) === 1.U) && (funct7_d(0) === 1.U)
+    inst_subw := (opcode_d(0x3b) === 1.U) && (funct3_d(0) === 1.U) && (funct7_d(0x20) === 1.U)
+    inst_sllw := (opcode_d(0x3b) === 1.U) && (funct3_d(1) === 1.U) && (funct7_d(0) === 1.U)
+    inst_srlw := (opcode_d(0x3b) === 1.U) && (funct3_d(5) === 1.U) && (funct7_d(0) === 1.U)
+    inst_sraw := (opcode_d(0x3b) === 1.U) && (funct3_d(5) === 1.U) && (funct7_d(0x20) === 1.U)
     inst_slti := (opcode_d(0x13) === 1.U) && (funct3_d(2) === 1.U)
     inst_sltiu := (opcode_d(0x13) === 1.U) && (funct3_d(3) === 1.U)
     inst_xori := (opcode_d(0x13) === 1.U) && (funct3_d(4) === 1.U)
     inst_ori := (opcode_d(0x13) === 1.U) && (funct3_d(6) === 1.U)
     inst_andi := (opcode_d(0x13) === 1.U) && (funct3_d(7) === 1.U)
-    inst_slli := (opcode_d(0x13) === 1.U) && (funct3_d(1) === 1.U) && (funct7_d(0x0) === 1.U)
-    inst_srli := (opcode_d(0x13) === 1.U) && (funct3_d(5) === 1.U) && (funct7_d(0x0) === 1.U)
+    inst_slli := (opcode_d(0x13) === 1.U) && (funct3_d(1) === 1.U) /* && (funct7_d(0x0) === 1.U)*/ // gcc would like to gen non-std code
+    inst_srli := (opcode_d(0x13) === 1.U) && (funct3_d(5) === 1.U) /* && (funct7_d(0x0) === 1.U)*/
     inst_srai := (opcode_d(0x13) === 1.U) && (funct3_d(5) === 1.U) && (funct7_d(0x20) === 1.U)
     inst_add := (opcode_d(0x33) === 1.U) && (funct3_d(0) === 1.U) && (funct7_d(0x0) === 1.U)
     inst_sub := (opcode_d(0x33) === 1.U) && (funct3_d(0) === 1.U) && (funct7_d(0x20) === 1.U)
@@ -399,12 +428,14 @@ class CPU_EX extends Module {
     es_ecall := inst_ecall
     
     inst_reserved := !(
-      // RV32I
+      // RV64I
       inst_lui === 1.U || inst_auipc === 1.U || inst_jal === 1.U ||
         inst_jalr === 1.U || inst_beq === 1.U || inst_bne === 1.U ||
         inst_blt === 1.U || inst_bge === 1.U || inst_bltu === 1.U ||
         inst_bgeu === 1.U || inst_lb === 1.U || inst_lh === 1.U ||
-        inst_lw === 1.U || inst_lbu === 1.U || inst_lhu === 1.U || inst_sb === 1.U || inst_sh === 1.U || inst_sw === 1.U ||
+        inst_lw === 1.U || inst_lbu === 1.U || inst_lhu === 1.U ||
+        inst_sb === 1.U || inst_sh === 1.U || inst_sw === 1.U ||
+        inst_lwu === 1.U || inst_ld === 1.U || inst_sd === 1.U ||
         inst_addi === 1.U || inst_slti === 1.U || inst_sltiu === 1.U ||
         inst_xori === 1.U || inst_ori === 1.U || inst_andi === 1.U ||
         inst_slli === 1.U || inst_srli === 1.U || inst_srai === 1.U ||
@@ -413,17 +444,20 @@ class CPU_EX extends Module {
         inst_srl === 1.U || inst_sra === 1.U || inst_or === 1.U ||
         inst_and === 1.U || inst_fence === 1.U || inst_ecall === 1.U ||
         inst_ebreak === 1.U ||
-        // RV32Zifencei
+        inst_addiw === 1.U || inst_slliw === 1.U || inst_srliw === 1.U ||
+        inst_sraiw === 1.U || inst_addw === 1.U || inst_subw === 1.U ||
+        inst_sllw === 1.U || inst_srlw === 1.U || inst_sraw === 1.U ||
+        // RV64Zifencei
         inst_fence_i === 1.U ||
-        // RV32 Machine
+        // RV64 Machine
         inst_mret === 1.U ||
-        // RV32Zicsr
+        // RV64Zicsr
         inst_csrrw === 1.U || inst_csrrs === 1.U || inst_csrrc === 1.U || inst_csrrc === 1.U || inst_csrrwi === 1.U || inst_csrrsi === 1.U || inst_csrrci === 1.U
       )
     
     // Execute stage
     val es_alu = Module(new ALU)
-    val alu_result = Wire(UInt(32.W))
+    val alu_result = Wire(UInt(rv_width.W))
     val alu_overflow = Wire(UInt(1.W))
     // val alu_op = Wire(UInt(12.W))
     val es_src1_rs1 = Wire(UInt(1.W))
@@ -446,17 +480,19 @@ class CPU_EX extends Module {
     val es_alu_op_srl = Wire(UInt(1.W))
     val es_alu_op_sra = Wire(UInt(1.W))
     val es_alu_op_lui = Wire(UInt(1.W))
+    val es_alu_op_srl_w = Wire(UInt(1.W))
+    val es_alu_op_sra_w = Wire(UInt(1.W))
     
     // Write back related
     val reg_file = Module(new RegFile(2))
     val reg_wen = Wire(UInt(1.W))
     val reg_waddr = Wire(UInt(5.W))
-    val reg_wdata = Wire(UInt(32.W))
+    val reg_wdata = Wire(UInt(rv_width.W))
     val reg_raddr_1 = Wire(UInt(5.W))
     val reg_raddr_2 = Wire(UInt(5.W))
     // val reg_raddr = Wire(new regfile_raddr)
-    val reg_rdata_1 = Wire(UInt(32.W))
-    val reg_rdata_2 = Wire(UInt(32.W))
+    val reg_rdata_1 = Wire(UInt(rv_width.W))
+    val reg_rdata_2 = Wire(UInt(rv_width.W))
     val gr_we = Wire(UInt(1.W))
     
     io.es_reg_a0 := reg_file.io.debug_a0
@@ -470,32 +506,35 @@ class CPU_EX extends Module {
     
     es_src1_imm := inst_auipc | inst_jal | inst_beq | inst_bne | inst_blt | inst_bge | inst_bltu | inst_bgeu |
       inst_csrrwi | inst_csrrsi | inst_csrrci
-    es_src1_rs1 := inst_jalr | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_sb | inst_sh | inst_sw | inst_addi |
-      inst_add | inst_sub | inst_slti | inst_slt | inst_sltiu | inst_sltu | inst_andi | inst_and | inst_ori | inst_or |
-      inst_xori | inst_xor | inst_slli | inst_sll | inst_srli | inst_srl | inst_srai | inst_sra | inst_lui | // LUI will not use src1
+    es_src1_rs1 := inst_jalr |
+      inst_lb | inst_lh | inst_lw | inst_lwu | inst_ld | inst_lbu | inst_lhu | inst_sb | inst_sh | inst_sw | inst_sd |
+      inst_addi | inst_addiw | inst_add | inst_addw | inst_sub | inst_subw | inst_slti | inst_slt | inst_sltiu | inst_sltu | inst_andi | inst_and | inst_ori | inst_or |
+      inst_xori | inst_xor | inst_slli | inst_slliw | inst_sll | inst_sllw | inst_srli | inst_srliw | inst_srl | inst_srlw | inst_srai | inst_sraiw | inst_sra | inst_sraw | inst_lui | // LUI will not use src1
       inst_csrrs | inst_csrrw | inst_csrrc
-    es_src2_rs2 := inst_add | inst_sub | inst_slt | inst_sltu | inst_and | inst_or | inst_xor | inst_sll | inst_srl | inst_sra
-    es_src2_rs2_self := inst_slli | inst_srli | inst_srai
+    es_src2_rs2 := inst_add | inst_addw | inst_sub | inst_subw | inst_slt | inst_sltu | inst_and | inst_or | inst_xor | inst_sll | inst_sllw | inst_srl | inst_srlw | inst_sra | inst_sraw
+    es_src2_rs2_self := inst_slli | inst_slliw | inst_srli | inst_srliw | inst_srai | inst_sraiw
     es_src2_pc := inst_auipc | inst_jal | inst_beq | inst_bne | inst_blt | inst_bge | inst_bltu | inst_bgeu
-    es_src2_imm := inst_jalr | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_sb | inst_sh | inst_sw |
-      inst_addi | inst_slti | inst_sltiu | inst_andi | inst_ori | inst_xori | inst_lui
+    es_src2_imm := inst_jalr | inst_lb | inst_lh | inst_lw | inst_lwu | inst_ld | inst_lbu | inst_lhu | inst_sb | inst_sh | inst_sw | inst_sd |
+      inst_addi | inst_addiw | inst_slti | inst_sltiu | inst_andi | inst_ori | inst_xori | inst_lui
     es_src2_csr := inst_csrrc | inst_csrrs | inst_csrrci | inst_csrrsi
     es_src2_zero := inst_csrrw | inst_csrrwi
     
     es_alu_op_add := (inst_auipc | inst_jal | inst_jalr | inst_beq | inst_bne | inst_blt | inst_bge |
-      inst_bltu | inst_bgeu | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu |
-      inst_sb | inst_sh | inst_sw | inst_addi | inst_add | inst_csrrw | inst_csrrwi)
-    es_alu_op_sub := inst_sub
+      inst_bltu | inst_bgeu | inst_lb | inst_lh | inst_lw | inst_lwu | inst_ld | inst_lbu | inst_lhu |
+      inst_sb | inst_sh | inst_sw | inst_sd | inst_addi | inst_addiw | inst_add | inst_addw | inst_csrrw | inst_csrrwi)
+    es_alu_op_sub := inst_sub | inst_subw
     es_alu_op_slt := inst_slti | inst_slt
     es_alu_op_sltu := inst_sltiu | inst_sltu
     es_alu_op_and := inst_andi | inst_and | inst_csrrc | inst_csrrci // csrrc and csrrci: ~imm & csr
     es_alu_op_nor := 0.U // unused for risc-v
     es_alu_op_or := inst_ori | inst_or | inst_csrrs | inst_csrrsi
     es_alu_op_xor := inst_xori | inst_xor
-    es_alu_op_sll := inst_slli | inst_sll
+    es_alu_op_sll := inst_slli | inst_slliw | inst_sll | inst_sllw
     es_alu_op_srl := inst_srli | inst_srl
     es_alu_op_sra := inst_srai | inst_sra
     es_alu_op_lui := inst_lui
+    es_alu_op_srl_w := inst_srliw | inst_srlw
+    es_alu_op_sra_w := inst_sraiw | inst_sraw
     
     
     when (es_src1_rs1 === 1.U && inst_csrrc === 0.U) {
@@ -507,15 +546,19 @@ class CPU_EX extends Module {
     } .otherwise {
         es_alu.io.alu_src1 := 0.U;
     }
+    val truncatShift = Wire(UInt(1.W))
+    truncatShift := inst_sllw | inst_srlw | inst_sraw
     
     when(es_src2_imm === 1.U) {
         es_alu.io.alu_src2 := inst_imm
     }.elsewhen(es_src2_pc === 1.U) {
         es_alu.io.alu_src2 := es_pc
-    }.elsewhen(es_src2_rs2 === 1.U) {
+    }.elsewhen(es_src2_rs2 === 1.U && truncatShift === 0.U) {
         es_alu.io.alu_src2 := reg_rdata_2
+    }.elsewhen(es_src2_rs2 === 1.U && truncatShift === 1.U) {
+        es_alu.io.alu_src2 := reg_rdata_2(4, 0)
     }.elsewhen(es_src2_rs2_self === 1.U) {
-        es_alu.io.alu_src2 := rs2
+        es_alu.io.alu_src2 := Cat(es_instr(25), rs2)
     } .elsewhen (es_src2_zero === 1.U) {
         es_alu.io.alu_src2 := 0.U
     } .elsewhen (es_src2_csr === 1.U) {
@@ -548,7 +591,11 @@ class CPU_EX extends Module {
         es_alu.io.alu_op := 1024.U
     }.elsewhen(es_alu_op_lui === 1.U) {
         es_alu.io.alu_op := 2048.U
-    }.otherwise {
+    }.elsewhen(es_alu_op_srl_w === 1.U) {
+        es_alu.io.alu_op := 4096.U
+    }.elsewhen(es_alu_op_sra_w === 1.U) {
+        es_alu.io.alu_op := 8192.U
+    } .otherwise {
         es_alu.io.alu_op := 1.U
         // we do not use ALU in this case
     }
@@ -559,8 +606,8 @@ class CPU_EX extends Module {
     io.data_addr := alu_result
     
     // Data load and store related
-    es_load := inst_lw | inst_lh | inst_lhu | inst_lb | inst_lbu
-    es_store := inst_sw | inst_sh | inst_sb
+    es_load := inst_lw | inst_lh | inst_lhu | inst_lb | inst_lbu | inst_lwu | inst_ld
+    es_store := inst_sd | inst_sw | inst_sh | inst_sb
     es_branch := inst_b | inst_jal | inst_jalr // jump instruction is dealed with the same schema
     io.data_write := es_write_r
     io.data_read := es_read_r
@@ -572,9 +619,11 @@ class CPU_EX extends Module {
     val es_read_ex = Wire(UInt(1.W))
     
     es_write_ex := es_store === 1.U && ((inst_sw === 1.U && io.data_addr(1, 0) != 0.U)
-      || (inst_sh === 1.U && io.data_addr(0) != 0.U))
-    es_read_ex := es_load === 1.U && ((inst_lw === 1.U && io.data_addr(1, 0) != 0.U)
-      || ((inst_lh | inst_lhu) === 1.U && io.data_addr(0) != 0.U)) // lb and lbu will not trigger this exception
+      || (inst_sh === 1.U && io.data_addr(0) != 0.U)
+      || (inst_sd === 1.U && io.data_addr(2, 0) != 0.U) )
+    es_read_ex := es_load === 1.U && (((inst_lw | inst_lwu) === 1.U && io.data_addr(1, 0) != 0.U)
+      || ((inst_lh | inst_lhu) === 1.U && io.data_addr(0) != 0.U)
+      || (inst_ld === 1.U && io.data_addr(2, 0) != 0.U) ) // lb and lbu will not trigger this exception
     
     when (es_new_instr === 1.U) {
         es_write_set := 0.U
@@ -592,8 +641,10 @@ class CPU_EX extends Module {
         io.data_size := 0.U
     } .elsewhen (inst_sh === 1.U || inst_lh === 1.U || inst_lhu === 1.U) {
         io.data_size := 1.U
-    } .elsewhen (inst_sw === 1.U || inst_lw === 1.U) {
+    } .elsewhen (inst_sw === 1.U || inst_lw === 1.U || inst_lwu === 1.U) {
         io.data_size := 2.U
+    } .elsewhen (inst_sd === 1.U || inst_ld === 1.U) {
+        io.data_size := 3.U
     } .otherwise {
         io.data_size := 0.U
     }
@@ -622,12 +673,14 @@ class CPU_EX extends Module {
      */
     
     // for store instructions, always from rs2
-    when (inst_sw === 1.U) {
-        io.data_write_data := reg_rdata_2
+    when (inst_sd === 1.U) {
+        io.data_write_data := reg_rdata_2(63, 0).asUInt()
+    } .elsewhen (inst_sw === 1.U) {
+        io.data_write_data := Fill(2, reg_rdata_2(31, 0).asUInt())
     } .elsewhen (inst_sh === 1.U) {
-        io.data_write_data := Fill(2, reg_rdata_2(15, 0).asUInt())
+        io.data_write_data := Fill(4, reg_rdata_2(15, 0).asUInt())
     } .elsewhen (inst_sb === 1.U) {
-        io.data_write_data := Fill(4, reg_rdata_2(7, 0).asUInt())
+        io.data_write_data := Fill(8, reg_rdata_2(7, 0).asUInt())
     } .otherwise {
         io.data_write_data := 0.U
     }
@@ -704,9 +757,9 @@ class CPU_EX extends Module {
         reg_wen := 0.U
     }
     
-    gr_we := inst_lui | inst_auipc | inst_jal | inst_jalr | inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_addi |
-      inst_slti | inst_sltiu | inst_xori | inst_ori | inst_andi | inst_slli | inst_srli | inst_srai | inst_add |
-      inst_sub | inst_sll | inst_slt | inst_sltu | inst_xor | inst_srl | inst_sra | inst_or | inst_and | inst_csrrc |
+    gr_we := inst_lui | inst_auipc | inst_jal | inst_jalr | inst_lb | inst_lh | inst_lw | inst_lwu | inst_ld | inst_lbu | inst_lhu | inst_addi | inst_addiw |
+      inst_slti | inst_sltiu | inst_xori | inst_ori | inst_andi | inst_slli | inst_slliw | inst_srli | inst_srliw | inst_srai | inst_sraiw | inst_add | inst_addw |
+      inst_sub | inst_subw | inst_sll | inst_sllw | inst_slt | inst_sltu | inst_xor | inst_srl | inst_srlw | inst_sra | inst_sraw | inst_or | inst_and | inst_csrrc |
       inst_csrrci | inst_csrrs | inst_csrrsi | inst_csrrw | inst_csrrwi
     
     CSR_module.io.es_ex := CSR_ex
@@ -773,28 +826,30 @@ class CPU_EX extends Module {
     
     // wdata related signals
     val reg_wdata_alu = Wire(UInt(1.W))
+    val reg_wdata_alu_lower = Wire(UInt(1.W))
     val reg_wdata_mem = Wire(UInt(1.W))
     val reg_wdata_csr = Wire(UInt(1.W))
     val reg_wdata_pc_off = Wire(UInt(1.W))
-    val pc_off = Wire(UInt(32.W))
+    val pc_off = Wire(UInt(rv_width.W))
     
     pc_off := es_pc + 4.U
     
-    // currently no write from csr
-    reg_wdata_alu := inst_lui | inst_auipc | inst_addi | inst_slti | inst_sltiu | inst_xori |
-      inst_ori | inst_andi | inst_slli | inst_srli | inst_srai | inst_add | inst_sub | inst_sll | inst_slt | inst_sltu |
-      inst_xor | inst_srl | inst_sra | inst_or | inst_and
+    reg_wdata_alu := inst_lui | inst_auipc | inst_addi | inst_addiw | inst_slti | inst_sltiu | inst_xori |
+      inst_ori | inst_andi | inst_slli | inst_slliw | inst_srli | inst_srliw | inst_srai | inst_sraiw | inst_add | inst_addw | inst_sub | inst_subw | inst_sll | inst_sllw | inst_slt | inst_sltu |
+      inst_xor | inst_srl | inst_sra | inst_srlw | inst_sraw | inst_or | inst_and
     
-    reg_wdata_mem := inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu
+    reg_wdata_alu_lower := inst_addiw | inst_slliw | inst_srliw | inst_sraiw | inst_addw | inst_subw | inst_sllw | inst_srlw | inst_sraw
     
-    val reg_wdata_mem_r = Reg(UInt(32.W))
-    val consistent_reg_wdata_mem = Wire(UInt(32.W))
+    reg_wdata_mem := inst_lb | inst_lh | inst_lw | inst_lbu | inst_lhu | inst_lwu | inst_ld
+    
+    val reg_wdata_mem_r = Reg(UInt(rv_width.W))
+    val consistent_reg_wdata_mem = Wire(UInt(rv_width.W))
     
     reg_wdata_csr := inst_csrrc | inst_csrrci | inst_csrrs | inst_csrrsi | inst_csrrw | inst_csrrwi
     
     reg_wdata_pc_off := inst_jal | inst_jalr
     
-    val reg_wdata_s = Wire(SInt(32.W))
+    val reg_wdata_s = Wire(SInt(rv_width.W))
     // for convenice
     
     when (es_data_handshake === 1.U) {
@@ -807,50 +862,101 @@ class CPU_EX extends Module {
         consistent_reg_wdata_mem := reg_wdata_mem_r
     }
     
-    when (reg_wdata_alu === 1.U) {
+    when (reg_wdata_alu === 1.U && reg_wdata_alu_lower === 0.U) {
         reg_wdata := alu_result
         reg_wdata_s := 0.S
+    } .elsewhen (reg_wdata_alu === 1.U && reg_wdata_alu_lower === 1.U) {
+        reg_wdata := reg_wdata_s.asUInt()
+        reg_wdata_s := alu_result(31, 0).asSInt()
     } .elsewhen (reg_wdata_pc_off === 1.U) {
         reg_wdata := pc_off
         reg_wdata_s := 0.S
-    } .elsewhen(reg_wdata_mem === 1.U && inst_lw === 1.U) {
-        reg_wdata := consistent_reg_wdata_mem
+    } .elsewhen(reg_wdata_mem === 1.U && inst_ld === 1.U) {
+        reg_wdata := consistent_reg_wdata_mem(63, 0).asUInt()
         reg_wdata_s := 0.S
-    } .elsewhen (reg_wdata_mem === 1.U && inst_lh === 1.U && alu_result(1, 0) === 0.U) {
+    } .elsewhen(reg_wdata_mem === 1.U && inst_lw === 1.U && alu_result(2, 0) === 0.U) {
+        reg_wdata := reg_wdata_s.asUInt()
+        reg_wdata_s := consistent_reg_wdata_mem(31, 0).asSInt()
+    } .elsewhen(reg_wdata_mem === 1.U && inst_lw === 1.U && alu_result(2, 0) === 4.U) {
+        reg_wdata := reg_wdata_s.asUInt()
+        reg_wdata_s := consistent_reg_wdata_mem(63, 32).asSInt()
+    } .elsewhen(reg_wdata_mem === 1.U && inst_lwu === 1.U && alu_result(2, 0) === 0.U) {
+        reg_wdata := consistent_reg_wdata_mem(31, 0).asUInt()
+        reg_wdata_s := 0.S
+    } .elsewhen(reg_wdata_mem === 1.U && inst_lwu === 1.U && alu_result(2, 0) === 4.U) {
+        reg_wdata := consistent_reg_wdata_mem(63, 32).asUInt()
+        reg_wdata_s := 0.S
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lh === 1.U && alu_result(2, 0) === 0.U) {
         reg_wdata_s := consistent_reg_wdata_mem(15, 0).asSInt()
         reg_wdata := reg_wdata_s.asUInt()
-    } .elsewhen (reg_wdata_mem === 1.U && inst_lh === 1.U && alu_result(1, 0) === 2.U) {
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lh === 1.U && alu_result(2, 0) === 2.U) {
         reg_wdata_s := consistent_reg_wdata_mem(31, 16).asSInt()
         reg_wdata := reg_wdata_s.asUInt()
-    } .elsewhen (reg_wdata_mem === 1.U && inst_lhu === 1.U && alu_result(1, 0) === 0.U) {
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lh === 1.U && alu_result(2, 0) === 4.U) {
+        reg_wdata_s := consistent_reg_wdata_mem(47, 32).asSInt()
+        reg_wdata := reg_wdata_s.asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lh === 1.U && alu_result(2, 0) === 6.U) {
+        reg_wdata_s := consistent_reg_wdata_mem(63, 48).asSInt()
+        reg_wdata := reg_wdata_s.asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lhu === 1.U && alu_result(2, 0) === 0.U) {
         reg_wdata := consistent_reg_wdata_mem(15, 0).asUInt()
         reg_wdata_s := 0.S
-    } .elsewhen (reg_wdata_mem === 1.U && inst_lhu === 1.U && alu_result(1, 0) === 2.U) {
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lhu === 1.U && alu_result(2, 0) === 2.U) {
         reg_wdata := consistent_reg_wdata_mem(31, 16).asUInt()
         reg_wdata_s := 0.S
-    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 0.U) {
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lhu === 1.U && alu_result(2, 0) === 4.U) {
+        reg_wdata := consistent_reg_wdata_mem(47, 32).asUInt()
+        reg_wdata_s := 0.S
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lhu === 1.U && alu_result(2, 0) === 6.U) {
+        reg_wdata := consistent_reg_wdata_mem(63, 48).asUInt()
+        reg_wdata_s := 0.S
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(2, 0) === 0.U) {
         reg_wdata_s := consistent_reg_wdata_mem(7, 0).asSInt()
         reg_wdata := reg_wdata_s.asUInt()
-    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 1.U) {
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(2, 0) === 1.U) {
         reg_wdata_s := consistent_reg_wdata_mem(15, 8).asSInt()
         reg_wdata := reg_wdata_s.asUInt()
-    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 2.U) {
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(2, 0) === 2.U) {
         reg_wdata_s := consistent_reg_wdata_mem(23, 16).asSInt()
         reg_wdata := reg_wdata_s.asUInt()
-    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(1, 0) === 3.U) {
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(2, 0) === 3.U) {
         reg_wdata_s := consistent_reg_wdata_mem(31, 24).asSInt()
         reg_wdata := reg_wdata_s.asUInt()
-    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 0.U) {
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(2, 0) === 4.U) {
+        reg_wdata_s := consistent_reg_wdata_mem(39, 32).asSInt()
+        reg_wdata := reg_wdata_s.asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(2, 0) === 5.U) {
+        reg_wdata_s := consistent_reg_wdata_mem(47, 40).asSInt()
+        reg_wdata := reg_wdata_s.asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(2, 0) === 6.U) {
+        reg_wdata_s := consistent_reg_wdata_mem(55, 48).asSInt()
+        reg_wdata := reg_wdata_s.asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lb === 1.U && alu_result(2, 0) === 7.U) {
+        reg_wdata_s := consistent_reg_wdata_mem(63, 56).asSInt()
+        reg_wdata := reg_wdata_s.asUInt()
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(2, 0) === 0.U) {
         reg_wdata := consistent_reg_wdata_mem(7, 0).asUInt()
         reg_wdata_s := 0.S
-    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 1.U) {
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(2, 0) === 1.U) {
         reg_wdata := consistent_reg_wdata_mem(15, 8).asUInt()
         reg_wdata_s := 0.S
-    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 2.U) {
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(2, 0) === 2.U) {
         reg_wdata := consistent_reg_wdata_mem(23, 16).asUInt()
         reg_wdata_s := 0.S
-    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(1, 0) === 3.U) {
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(2, 0) === 3.U) {
         reg_wdata := consistent_reg_wdata_mem(31, 24).asUInt()
+        reg_wdata_s := 0.S
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(2, 0) === 4.U) {
+        reg_wdata := consistent_reg_wdata_mem(39, 32).asUInt()
+        reg_wdata_s := 0.S
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(2, 0) === 5.U) {
+        reg_wdata := consistent_reg_wdata_mem(47, 40).asUInt()
+        reg_wdata_s := 0.S
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(2, 0) === 6.U) {
+        reg_wdata := consistent_reg_wdata_mem(55, 48).asUInt()
+        reg_wdata_s := 0.S
+    } .elsewhen (reg_wdata_mem === 1.U && inst_lbu === 1.U && alu_result(2, 0) === 7.U) {
+        reg_wdata := consistent_reg_wdata_mem(63, 56).asUInt()
         reg_wdata_s := 0.S
     } .elsewhen(reg_wdata_csr === 1.U) {
         reg_wdata := CSR_read_data
@@ -863,7 +969,7 @@ class CPU_EX extends Module {
     io.ex_target := CSR_mtvec
     
     val fs_ex_r = RegInit(0.U(1.W))
-    val fs_excode_r = RegInit(0.U(32.W))
+    val fs_excode_r = RegInit(0.U(rv_width.W))
     when (es_new_instr === 1.U) {
         fs_ex_r := io.fs_ex
         fs_excode_r := io.fs_excode
@@ -914,7 +1020,8 @@ class CPU_EX extends Module {
     } .elsewhen (es_valid  === 1.U && es_write_ex === 1.U) {
         es_excode := excode_const.StoreAddrMisaligned
     } .elsewhen (es_valid === 1.U && timer_int_r === 1.U) {
-        es_excode := (0x80000007.S).asUInt()// excode_const.MachineTimerInt throws error here
+        es_excode := (-9223372036854775801L.S).asUInt() // excode_const.MachineTimerInt throws error here
+        // actually 0x8000000000000007
     } .otherwise {
         es_excode := 0.U
     }
@@ -929,31 +1036,8 @@ class CPU_EX extends Module {
         io.branch_br_taken := 0.U
     }
     
-    
-    
-    /*
-    * Currently not implemented signals
-    * */
-    // io.inst_reload := 0.U
-    
-    // io.data_wstrb := 0xf.U
-    // es_store := 0.U
-    // es_load := 0.U
-    // io.br_target := 0.U
-    // es_branch := 0.U
-    // io.data_write_data := 0.U
-    //io.br_valid := 0.U
-    // es_ex := 0.U
-    // es_excode := 0.U
-    // CSR_write := 0.U
-    // CSR_read_num := 0.U
-    // CSR_write_num := 0.U
-    
-    
-    
-    
 }
 
 object CPU_EX extends App {
-    chisel3.Driver.execute(args, () => new CPU_EX)
+    chisel3.Driver.execute(args, () => new CPU_EX(64))
 }

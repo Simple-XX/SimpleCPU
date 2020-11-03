@@ -28,15 +28,15 @@ class branch_pred extends Module {
 * Note that we do not identify any jmp reg instructions since we cannot fetch the branch target
 * */
 
-class branch_target extends Module {
+class branch_target(val rv_width: Int = 64) extends Module {
     val io = IO(new Bundle{
         val IF_instr = Input(UInt(32.W))
         // refers to new data handshake
-        val IF_instr_valid = Input(UInt(32.W))
-        val IF_pc = Input(UInt(32.W))
+        val IF_instr_valid = Input(UInt(1.W))
+        val IF_pc = Input(UInt(rv_width.W))
         val is_br = Output(UInt(1.W))
         val is_jmp = Output(UInt(1.W))
-        val br_target = Output(UInt(32.W))
+        val br_target = Output(UInt(rv_width.W))
     })
     // note that we handle jal beq bne blt bge bltu bgeu
     val opcode = Wire(UInt(7.W))
@@ -86,8 +86,8 @@ class branch_target extends Module {
     inst_b := inst_beq | inst_bne | inst_blt | inst_bge | inst_bltu | inst_bgeu
     inst_j := inst_jal
     
-    val jal_target = Wire(UInt(32.W))
-    val branch_target = Wire(UInt(32.W))
+    val jal_target = Wire(UInt(rv_width.W))
+    val branch_target = Wire(UInt(rv_width.W))
     
     io.is_br := inst_jal | inst_beq | inst_bne | inst_blt | inst_bge | inst_bltu | inst_bgeu
     when (inst_jal === 1.U) {
@@ -105,8 +105,8 @@ class branch_target extends Module {
 
     val B_imm_b = Wire(new B_imm_bundle)
     val J_imm_b = Wire(new J_imm_bundle)
-    val B_imm = Wire(SInt(32.W)) // sign extend
-    val J_imm = Wire(SInt(32.W)) // sign extend
+    val B_imm = Wire(SInt(rv_width.W)) // sign extend
+    val J_imm = Wire(SInt(rv_width.W)) // sign extend
     B_imm := (B_imm_b.asUInt).asSInt()
     J_imm := (J_imm_b.asUInt).asSInt()
     

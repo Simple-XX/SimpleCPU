@@ -3,13 +3,13 @@ package Xim
 import chisel3._
 
 
-class CPU_IF extends Module {
+class CPU_IF(val rv_width: Int = 64) extends Module {
     val io = IO(new Bundle {
-        val inst_addr = Output(UInt(32.W))
+        val inst_addr = Output(UInt(rv_width.W))
         val inst_req_valid = Output(UInt(1.W))
         val inst_req_ack = Input(UInt(1.W))
         
-        val inst_data = Input(UInt(32.W))
+        val inst_data = Input(UInt(rv_width.W))
         val inst_valid = Input(UInt(1.W))
         val inst_ack = Output(UInt(1.W))
         
@@ -17,16 +17,16 @@ class CPU_IF extends Module {
         val inst_reload = Input(UInt(1.W))
         // maybe we do not need to deal with reload in this pipeline
         val fs_to_es_valid = Output(UInt(1.W))
-        val fs_pc = Output(UInt(32.W))
+        val fs_pc = Output(UInt(rv_width.W))
         val fs_inst = Output(UInt(32.W))
         val fs_ex = Output(UInt(1.W))
         val fs_excode = Output(UInt(5.W)) // maybe should be longer?
         
         val br_valid = Input(UInt(1.W))
-        val br_target = Input(UInt(32.W))
+        val br_target = Input(UInt(rv_width.W))
         
         val ex_valid = Input(UInt(1.W))
-        val ex_target = Input(UInt(32.W))
+        val ex_target = Input(UInt(rv_width.W))
         
         // from branch predicter
         val next_branch = Input(UInt(1.W))
@@ -43,10 +43,10 @@ class CPU_IF extends Module {
     val fs_allowin = Wire(UInt(1.W))
     val fs_ready_go = Wire(UInt(1.W))
     
-    val next_pc = Wire(UInt(32.W))
+    val next_pc = Wire(UInt(rv_width.W))
     val next_fs_ex = RegInit(0.U(1.W))
     val fs_ex = RegInit(0.U(1.W))
-    val fs_pc_r = RegInit((0x7ffffffcL).U(32.W))
+    val fs_pc_r = RegInit((0x7ffffffcL).U(rv_width.W))
     
     // some handy signals
     val addr_handshake = Wire(UInt(1.W))
@@ -60,7 +60,7 @@ class CPU_IF extends Module {
     // for branch prediction
     val is_br = Wire(UInt(1.W))
     val is_jmp = Wire(UInt(1.W))
-    val this_br_target = Wire(UInt(32.W))
+    val this_br_target = Wire(UInt(rv_width.W))
     
     val next_branch = RegInit(0.U)
     
@@ -151,22 +151,27 @@ class CPU_IF extends Module {
     
     io.fs_inst := fs_inst_r
     
-    when(data_handshake === 1.U) {
-        // update our inst data
-        fs_inst_r := io.inst_data
-    }
-    
     // printf("inst fetched in IF = %x addr_handshake = %d data_handshake = %d " +
     //  "branch_valid = %d branch target = %x\n", io.inst_data, addr_handshake, data_handshake, io.br_valid, io.br_target)
     
-    val branch_target_gen = Module(new branch_target)
-    branch_target_gen.io.IF_instr := io.inst_data
+    val branch_target_gen = Module(new branch_target(rv_width))
+    
     branch_target_gen.io.IF_instr_valid := data_handshake
     branch_target_gen.io.IF_pc := fs_pc_r
     is_br := branch_target_gen.io.is_br
     is_jmp := branch_target_gen.io.is_jmp
     this_br_target := branch_target_gen.io.br_target
     
+    when(data_handshake === 1.U && next_pc(2) === 1.U) {
+        // update our inst data
+        fs_inst_r := io.inst_data(rv_width - 1, rv_width / 2)
+        branch_target_gen.io.IF_instr := io.inst_data(rv_width - 1, rv_width / 2)
+    } .elsewhen(data_handshake === 1.U && next_pc(2) === 0.U) {
+        fs_inst_r := io.inst_data(rv_width / 2 - 1, 0)
+        branch_target_gen.io.IF_instr := io.inst_data(rv_width / 2 - 1, 0)
+    } .otherwise {
+        branch_target_gen.io.IF_instr := 0.U
+    }
 }
 
 object CPU_IF extends App {

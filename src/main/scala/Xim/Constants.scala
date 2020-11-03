@@ -18,15 +18,13 @@ trait CSRConstants {
     val MHARTID = 0xf14.U
     
     // custom encoding
-    val MTIMELO = 0x7c0.U
-    val MTIMEHI = 0x7c1.U
-    val MTIMECMPLO = 0x7c2.U
-    val MTIMECMPHI = 0x7c3.U
+    val MTIME = 0x7c0.U
+    val MTIMECMP = 0x7c2.U
 }
 
 trait ExceptionConstants {
     // Currently we do not handle page fault related exceptions
-    var MachineTimerInt = UInt(32.W)
+    var MachineTimerInt = UInt(64.W)
     MachineTimerInt = (0x80000007.S).asUInt()
     // No external exceptions for now
     val InstructionMisaligned = 0x00000000.U

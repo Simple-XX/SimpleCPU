@@ -3,38 +3,38 @@ package Xim
 
 import chisel3._
 
-class CPU_Core extends Module {
+class CPU_Core(val rv_width: Int = 64) extends Module {
     val io = IO(new Bundle {
-        val inst_addr        = Output(UInt(32.W))
+        val inst_addr        = Output(UInt(rv_width.W))
         val inst_req_valid   = Output(UInt(1.W))
         val inst_req_ack     = Input(UInt(1.W))
         
-        val inst_data        = Input(UInt(32.W))
+        val inst_data        = Input(UInt(rv_width.W))
         val inst_valid       = Input(UInt(1.W))
         val inst_ack         = Output(UInt(1.W))
         
-        val data_addr        = Output(UInt(32.W))
+        val data_addr        = Output(UInt(rv_width.W))
         val data_write       = Output(UInt(1.W))
         val data_read        = Output(UInt(1.W))
         val data_size        = Output(UInt(2.W))
         
-        val data_write_data  = Output(UInt(32.W))
+        val data_write_data  = Output(UInt(rv_width.W))
         
         val data_req_ack      = Input(UInt(1.W))
         
-        val data_read_data   = Input(UInt(32.W))
+        val data_read_data   = Input(UInt(rv_width.W))
         val data_read_valid  = Input(UInt(1.W))
         val data_data_ack    = Output(UInt(1.W))
         
         // for debug purpose
         val reg_wen          = Output(UInt(1.W))
-        val reg_wdata        = Output(UInt(32.W))
+        val reg_wdata        = Output(UInt(rv_width.W))
         val reg_waddr        = Output(UInt(5.W))
         val es_instr         = Output(UInt(32.W))
-        val es_pc            = Output(UInt(32.W))
-        val es_reg_a0        = Output(UInt(32.W))
+        val es_pc            = Output(UInt(rv_width.W))
+        val es_reg_a0        = Output(UInt(rv_width.W))
     })
-    val IF_Stage = Module(new CPU_IF)
+    val IF_Stage = Module(new CPU_IF(rv_width))
     io.inst_addr := IF_Stage.io.inst_addr
     io.inst_req_valid := IF_Stage.io.inst_req_valid
     IF_Stage.io.inst_req_ack := io.inst_req_ack
@@ -42,7 +42,7 @@ class CPU_Core extends Module {
     IF_Stage.io.inst_valid := io.inst_valid
     io.inst_ack := IF_Stage.io.inst_ack
     
-    val EX_Stage = Module(new CPU_EX)
+    val EX_Stage = Module(new CPU_EX(rv_width))
     io.data_addr := EX_Stage.io.data_addr
     io.data_write := EX_Stage.io.data_write
     io.data_read := EX_Stage.io.data_read

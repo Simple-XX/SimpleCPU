@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util.HasBlackBoxInline
 
 class AXI_interface extends Bundle {
-    private val data_width = 32
+    private val data_width = 64
     private val addr_width = 20 // 1 Megabyte should be enough for us
     private val wstrb_width = data_width / 8
     private val id_width = 8
@@ -46,7 +46,7 @@ class AXI_interface extends Bundle {
 }
 
 class AXI_fake_serial extends Module {
-    private val data_width = 32
+    private val data_width = 64
     private val addr_width = 20 // 1 Megabyte should be enough for us
     private val wstrb_width = data_width / 8
     private val id_width = 8
@@ -55,7 +55,7 @@ class AXI_fake_serial extends Module {
         val awaddr = Input(UInt(data_width.W))
         val awvalid = Input(UInt(1.W))
         val wvalid = Input(UInt(1.W))
-        val wdata = Input(UInt(32.W))
+        val wdata = Input(UInt(data_width.W))
     })
     val serial_valid = RegInit(0.U(1.W))
     
@@ -82,7 +82,7 @@ class AXI_ram extends BlackBox with HasBlackBoxInline {
     module AXI_ram #
 (
     // Width of data bus in bits
-    parameter DATA_WIDTH = 32,
+    parameter DATA_WIDTH = 64,
     // Width of address bus in bits
     parameter ADDR_WIDTH = 20,
     // Width of wstrb (width of data bus in words)
@@ -133,7 +133,7 @@ class AXI_ram extends BlackBox with HasBlackBoxInline {
     input  wire                   rready
 );
 
-parameter VALID_ADDR_WIDTH = ADDR_WIDTH - 2;
+parameter VALID_ADDR_WIDTH = ADDR_WIDTH - 3;
 parameter WORD_WIDTH = STRB_WIDTH;
 parameter WORD_SIZE = DATA_WIDTH/WORD_WIDTH;
 

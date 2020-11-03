@@ -20,7 +20,7 @@
     (setq tmp (car file_list))
     (cond
         ((eq tmp nil) ans)
-        ((not (strin tmp "rv32ui-p-")) (filter (cdr file_list) ans))
+        ((not (strin tmp "rv64ui-p-")) (filter (cdr file_list) ans))
         ((not (strin tmp "dump")) (filter (cdr file_list) (cons tmp ans))) ; if this is not a dump
         (t (filter (cdr file_list) ans))
     )

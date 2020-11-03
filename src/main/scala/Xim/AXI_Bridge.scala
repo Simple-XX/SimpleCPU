@@ -43,9 +43,9 @@ class AXI_Bridge(width: Int) extends BlackBox with HasBlackBoxInline {
                input         inst_req     ,
                input         inst_wr      ,
                input  [1 :0] inst_size    ,
-               input  [31:0] inst_addr    ,
-               input  [31:0] inst_wdata   ,
-               output [31:0] inst_rdata   ,
+               input  [63:0] inst_addr    ,
+               input  [63:0] inst_wdata   ,
+               output [63:0] inst_rdata   ,
                output        inst_addr_ok ,
                output        inst_data_ok ,
            
@@ -53,16 +53,16 @@ class AXI_Bridge(width: Int) extends BlackBox with HasBlackBoxInline {
                input         data_req     ,
                input         data_wr      ,
                input  [1 :0] data_size    ,
-               input  [31:0] data_addr    ,
-               input  [31:0] data_wdata   ,
-               output [31:0] data_rdata   ,
+               input  [63:0] data_addr    ,
+               input  [63:0] data_wdata   ,
+               output [63:0] data_rdata   ,
                output        data_addr_ok ,
                output        data_data_ok ,
            
                //axi
                //ar
                output [3 :0] arid         ,
-               output [31:0] araddr       ,
+               output [63:0] araddr       ,
                output [7 :0] arlen        ,
                output [2 :0] arsize       ,
                output [1 :0] arburst      ,
@@ -73,14 +73,14 @@ class AXI_Bridge(width: Int) extends BlackBox with HasBlackBoxInline {
                input         arready      ,
                //r
                input  [3 :0] rid          ,
-               input  [31:0] rdata        ,
+               input  [63:0] rdata        ,
                input  [1 :0] rresp        ,
                input         rlast        ,
                input         rvalid       ,
                output        rready       ,
                //aw
                output [3 :0] awid         ,
-               output [31:0] awaddr       ,
+               output [63:0] awaddr       ,
                output [7 :0] awlen        ,
                output [2 :0] awsize       ,
                output [1 :0] awburst      ,
@@ -91,8 +91,8 @@ class AXI_Bridge(width: Int) extends BlackBox with HasBlackBoxInline {
                input         awready      ,
                //w
                output [3 :0] wid          ,
-               output [31:0] wdata        ,
-               output [3 :0] wstrb        ,
+               output [63:0] wdata        ,
+               output [7 :0] wstrb        ,
                output        wlast        ,
                output        wvalid       ,
                input         wready       ,
@@ -108,8 +108,8 @@ reg do_req;
 reg do_req_or; //req is inst or data;1:data,0:inst
 reg        do_wr_r;
 reg [1 :0] do_size_r;
-reg [31:0] do_addr_r;
-reg [31:0] do_wdata_r;
+reg [63:0] do_addr_r;
+reg [63:0] do_wdata_r;
 wire data_back;
 
 assign inst_addr_ok = !do_req&&!data_req;
@@ -179,8 +179,9 @@ assign awvalid = do_req&&do_wr_r&&!addr_rcv;
 //w
 assign wid    = 4'd0;
 assign wdata  = do_wdata_r;
-assign wstrb  = do_size_r==2'd0 ? 4'b0001<<do_addr_r[1:0] :
-                do_size_r==2'd1 ? 4'b0011<<do_addr_r[1:0] : 4'b1111;
+assign wstrb  = do_size_r==2'd0 ? 8'b00000001<<do_addr_r[2:0] :
+                do_size_r==2'd1 ? 8'b00000011<<do_addr_r[2:0] :
+                do_size_r==2'd2 ? 8'b00001111<<do_addr_r[2:0] : 8'b11111111;
 assign wlast  = 1'd1;
 assign wvalid = do_req&&do_wr_r&&!wdata_rcv;
 //b

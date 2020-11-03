@@ -99,3 +99,18 @@ Vaddr(11, 0) -> always keep untouched
 **1GB record**:Vaddr(38, 30) -> throw to match, Vaddr(29, 12) keep untouched, Paddr: PPN2 || Vaddr(29, 0)
 
 TLB retire algorithm: loop queue
+
+
+### W suffix instructions in RV64I
+
+Note that we cannot always simply pass 64 bit srcs to ALU and expect the lower word satisfy the W suffix requirement.
+
+ADDIW: ok -> currently implemented as no W
+SLLIW: ok -> currently implemented as no W
+SRLIW: NOT OK (higher bits may come in) -> implemented
+SRAIW: NOT OK (higher bits affect sig) -> implemented
+ADDW: ok -> currently implemented as no W
+SUBW: ok -> currently implemented as no W
+SLLW: ok -> currently implemented as no W
+SRLW: NOT OK (higher bits may come in) -> implemented
+SRAW: NOT OK (higher bits affect sig) -> implemented
