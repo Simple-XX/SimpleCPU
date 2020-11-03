@@ -5,7 +5,7 @@ import chisel3._
 import chisel3.util
 
 /* a variable entry count TLB module */
-class tlb(TLB_entry_count: Int) extends Module {
+class tlb(TLB_entry_count: Int, width: Int) extends Module {
     val io = IO(new Bundle {
         val VAddr = Input(UInt(64.W))
         val PAddr = Output(UInt(64.W))
@@ -27,7 +27,7 @@ class tlb(TLB_entry_count: Int) extends Module {
     val tlb_write_index = RegInit(0.U(log2Ceil(TLB_entry_count).W))
     
     // page table walker
-    val PTW = Module(new ptw)
+    val PTW = Module(new ptw(width))
     val tlb_write = Wire(UInt(1.W))
     val tlb_entry_ptw = Wire(UInt((new TLB_entry).getWidth.W))
     tlb_write := PTW.io.TLB_entry_valid
@@ -65,5 +65,5 @@ class tlb(TLB_entry_count: Int) extends Module {
 }
 
 object tlb extends App {
-    chisel3.Driver.execute(args, () => new tlb(32))
+    chisel3.Driver.execute(args, () => new tlb(32, 64))
 }

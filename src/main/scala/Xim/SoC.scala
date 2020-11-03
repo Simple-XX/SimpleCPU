@@ -16,7 +16,7 @@ class SoC extends Module {
     
     
     val Core = Module(new CPU_Core)
-    val CPU_Bridge = Module(new AXI_Bridge)
+    val CPU_Bridge = Module(new AXI_Bridge(32))
     CPU_Bridge.io.clock := clock
     CPU_Bridge.io.reset := reset
     

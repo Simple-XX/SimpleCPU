@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util.HasBlackBoxInline
 
 
-class AXI_Bridge extends BlackBox with HasBlackBoxInline {
+class AXI_Bridge(width: Int) extends BlackBox with HasBlackBoxInline {
     val io = IO(Flipped(new AXI_interface {
         // note that all was flipped
         val clock = Output(Clock())
@@ -15,18 +15,18 @@ class AXI_Bridge extends BlackBox with HasBlackBoxInline {
         val inst_req = Output(UInt(1.W))
         val inst_wr = Output(UInt(1.W))
         val inst_size = Output(UInt(2.W))
-        val inst_addr = Output(UInt(32.W))
-        val inst_wdata = Output(UInt(32.W))
-        val inst_rdata = Input(UInt(32.W))
+        val inst_addr = Output(UInt(width.W))
+        val inst_wdata = Output(UInt(width.W))
+        val inst_rdata = Input(UInt(width.W))
         val inst_addr_ok = Input(UInt(1.W))
         val inst_data_ok = Input(UInt(1.W))
         // data sram-like
         val data_req = Output(UInt(1.W))
         val data_wr = Output(UInt(1.W))
         val data_size = Output(UInt(2.W))
-        val data_addr = Output(UInt(32.W))
-        val data_wdata = Output(UInt(32.W))
-        val data_rdata = Input(UInt(32.W))
+        val data_addr = Output(UInt(width.W))
+        val data_wdata = Output(UInt(width.W))
+        val data_rdata = Input(UInt(width.W))
         val data_addr_ok = Input(UInt(1.W))
         val data_data_ok = Input(UInt(1.W))
         
