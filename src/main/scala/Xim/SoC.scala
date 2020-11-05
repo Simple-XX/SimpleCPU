@@ -16,9 +16,6 @@ class SoC(val rv_width: Int = 64) extends Module {
     
     
     val Core = Module(new CPU_Core(64))
-    val CPU_Bridge = Module(new AXI_Bridge(64))
-    CPU_Bridge.io.clock := clock
-    CPU_Bridge.io.reset := reset
     
     val RAM = Module(new AXI_ram)
     RAM.io.clock := clock
@@ -31,69 +28,53 @@ class SoC(val rv_width: Int = 64) extends Module {
     io.es_instr := Core.io.es_instr
     io.es_reg_a0 := Core.io.es_reg_a0
     
-    // CPU_Bridge.io <> RAM.io
-    RAM.io.awid := CPU_Bridge.io.awid
-    RAM.io.awaddr := CPU_Bridge.io.awaddr
-    RAM.io.awlen := CPU_Bridge.io.awlen
-    RAM.io.awsize := CPU_Bridge.io.awsize
-    RAM.io.awburst := CPU_Bridge.io.awburst
-    RAM.io.awlock := CPU_Bridge.io.awlock
-    RAM.io.awcache := CPU_Bridge.io.awcache
-    RAM.io.awprot := CPU_Bridge.io.awprot
-    RAM.io.awvalid := CPU_Bridge.io.awvalid
-    CPU_Bridge.io.awready := RAM.io.awready
-    RAM.io.wdata := CPU_Bridge.io.wdata
-    RAM.io.wstrb := CPU_Bridge.io.wstrb
-    RAM.io.wlast := CPU_Bridge.io.wlast
-    RAM.io.wvalid := CPU_Bridge.io.wvalid
-    CPU_Bridge.io.wready := RAM.io.wready
-    CPU_Bridge.io.bid := RAM.io.bid
-    CPU_Bridge.io.bresp := RAM.io.bresp
-    CPU_Bridge.io.bvalid := RAM.io.bvalid
-    RAM.io.bready := CPU_Bridge.io.bready
-    RAM.io.arid := CPU_Bridge.io.arid
-    RAM.io.araddr := CPU_Bridge.io.araddr
-    RAM.io.arlen := CPU_Bridge.io.arlen
-    RAM.io.arsize := CPU_Bridge.io.arsize
-    RAM.io.arburst := CPU_Bridge.io.arburst
-    RAM.io.arlock := CPU_Bridge.io.arlock
-    RAM.io.arcache := CPU_Bridge.io.arcache
-    RAM.io.arprot := CPU_Bridge.io.arcache
-    RAM.io.arvalid := CPU_Bridge.io.arvalid
-    CPU_Bridge.io.arready := RAM.io.arready
-    CPU_Bridge.io.rid := RAM.io.rid
-    CPU_Bridge.io.rdata := RAM.io.rdata
-    CPU_Bridge.io.rresp := RAM.io.rresp
-    CPU_Bridge.io.rlast := RAM.io.rlast
-    CPU_Bridge.io.rvalid := RAM.io.rvalid
-    RAM.io.rready := CPU_Bridge.io.rready
+    // Core.io <> RAM.io
+    RAM.io.awid := Core.io.awid
+    RAM.io.awaddr := Core.io.awaddr
+    RAM.io.awlen := Core.io.awlen
+    RAM.io.awsize := Core.io.awsize
+    RAM.io.awburst := Core.io.awburst
+    RAM.io.awlock := Core.io.awlock
+    RAM.io.awcache := Core.io.awcache
+    RAM.io.awprot := Core.io.awprot
+    RAM.io.awvalid := Core.io.awvalid
+    Core.io.awready := RAM.io.awready
+    RAM.io.wdata := Core.io.wdata
+    RAM.io.wstrb := Core.io.wstrb
+    RAM.io.wlast := Core.io.wlast
+    RAM.io.wvalid := Core.io.wvalid
+    Core.io.wready := RAM.io.wready
+    Core.io.bid := RAM.io.bid
+    Core.io.bresp := RAM.io.bresp
+    Core.io.bvalid := RAM.io.bvalid
+    RAM.io.bready := Core.io.bready
+    RAM.io.arid := Core.io.arid
+    RAM.io.araddr := Core.io.araddr
+    RAM.io.arlen := Core.io.arlen
+    RAM.io.arsize := Core.io.arsize
+    RAM.io.arburst := Core.io.arburst
+    RAM.io.arlock := Core.io.arlock
+    RAM.io.arcache := Core.io.arcache
+    RAM.io.arprot := Core.io.arcache
+    RAM.io.arvalid := Core.io.arvalid
+    Core.io.arready := RAM.io.arready
+    Core.io.rid := RAM.io.rid
+    Core.io.rdata := RAM.io.rdata
+    Core.io.rresp := RAM.io.rresp
+    Core.io.rlast := RAM.io.rlast
+    Core.io.rvalid := RAM.io.rvalid
+    RAM.io.rready := Core.io.rready
     
-    CPU_Bridge.io.inst_req := Core.io.inst_req_valid
-    CPU_Bridge.io.inst_wr := 0.U
-    CPU_Bridge.io.inst_size := 2.U
-    CPU_Bridge.io.inst_addr := Core.io.inst_addr
-    CPU_Bridge.io.inst_wdata := 0.U
-    Core.io.inst_data := CPU_Bridge.io.inst_rdata
-    Core.io.inst_req_ack := CPU_Bridge.io.inst_addr_ok
-    Core.io.inst_valid := CPU_Bridge.io.inst_data_ok
-    
-    CPU_Bridge.io.data_req := Core.io.data_write | Core.io.data_read
-    CPU_Bridge.io.data_wr := Core.io.data_write
-    CPU_Bridge.io.data_size := Core.io.data_size
-    CPU_Bridge.io.data_addr := Core.io.data_addr
-    CPU_Bridge.io.data_wdata := Core.io.data_write_data
-    Core.io.data_read_data := CPU_Bridge.io.data_rdata
-    Core.io.data_req_ack := CPU_Bridge.io.data_addr_ok
-    Core.io.data_read_valid := CPU_Bridge.io.data_data_ok
+
     
     val uart = Module(new AXI_fake_serial)
-    uart.io.wdata := CPU_Bridge.io.wdata
-    uart.io.wvalid := CPU_Bridge.io.wvalid
-    uart.io.awaddr := CPU_Bridge.io.awaddr
-    uart.io.awvalid := CPU_Bridge.io.awvalid
+    uart.io.wdata := Core.io.wdata
+    uart.io.wvalid := Core.io.wvalid
+    uart.io.awaddr := Core.io.awaddr
+    uart.io.awvalid := Core.io.awvalid
     
-    // printf(p"SRAM-like: inst_addr = ${CPU_Bridge.io.inst_addr} inst_req = ${CPU_Bridge.io.inst_req}, inst_wr = ${CPU_Bridge.io.inst_wr} inst_addr_ok = ${CPU_Bridge.io.inst_addr_ok}\n")
-    // printf(p"AXI RAM: araddr = ${CPU_Bridge.io.araddr} arready = ${CPU_Bridge.io.arready} arvalid = ${CPU_Bridge.io.arvalid} rready = ${CPU_Bridge.io.rready} rvalid = ${CPU_Bridge.io.rvalid} rdata = ${CPU_Bridge.io.rdata}\n")
+    // printf(p"SRAM-like: inst_addr = ${Core.io.inst_addr} inst_req = ${Core.io.inst_req}, inst_wr = ${Core.io.inst_wr} inst_addr_ok = ${Core.io.inst_addr_ok}\n")
+    // printf(p"AXI RAM: araddr = ${Core.io.araddr} arready = ${Core.io.arready} arvalid = ${Core.io.arvalid} rready = ${Core.io.rready} rvalid = ${Core.io.rvalid} rdata = ${Core.io.rdata}\n")
 }
 
 object SoC extends App {

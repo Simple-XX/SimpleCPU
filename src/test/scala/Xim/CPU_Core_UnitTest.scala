@@ -2,7 +2,7 @@ package Xim
 
 import  chisel3._
 import chisel3.iotesters.PeekPokeTester
-
+/*
 class CPU_Core_Arithmetic_UnitTester(c: CPU_Core) extends PeekPokeTester(c) {
     private val core = c
     step(1) // come into a stable state
@@ -67,4 +67,6 @@ class CPU_Core_Branch_UnitTester(c: CPU_Core) extends PeekPokeTester(c) {
     print("**********************cycle 11**********************\n")
 
 }
+
+ */
 
