@@ -8,8 +8,10 @@ object excode_const extends ExceptionConstants
 class CPU_EX(val rv_width: Int = 64) extends Module {
     val io = IO(new Bundle {
         val data_addr = Output(UInt(rv_width.W))
-        val data_write = Output(UInt(1.W))
-        val data_read = Output(UInt(1.W))
+        val data_write_mem = Output(UInt(1.W))
+        val data_read_mem = Output(UInt(1.W))
+        val data_write_mmio = Output(UInt(1.W))
+        val data_read_mmio = Output(UInt(1.W))
         val data_size = Output(UInt(2.W))
         
         val data_write_data = Output(UInt(rv_width.W))
@@ -48,22 +50,6 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
         val es_instr = Output(UInt(32.W))
         val es_pc = Output(UInt(rv_width.W))
     })
-    
-    // hmmmm may not be useful
-    private def offset_calc(size: Int, addr: Int) : Int = {
-        // we expect that the lowest two bits of address are passed
-        var ret : Int = 0
-        if (size == 0) {
-            ret = addr * 8
-        } else if (size == 1) {
-            ret = addr * 16
-        } else {
-            ret = -1
-            printf("ERROR offset\n");
-        }
-        return ret
-    }
-    
     
     val es_valid = RegInit(0.U(1.W))
     // es_allowin as Output
@@ -210,31 +196,31 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     io.es_allowin := (!(es_valid === 1.U)) || (es_ready_go === 1.U)
     
     // inst coding zone
-    val opcode = Wire(UInt(7.W))
-    val opcode_d = Wire(UInt(128.W))
-    val funct7 = Wire(UInt(7.W))
-    val funct7_d = Wire(UInt(128.W))
-    val funct3 = Wire(UInt(3.W))
-    val funct3_d = Wire(UInt(8.W))
-    val rs1 = Wire(UInt(5.W))
-    val rs2 = Wire(UInt(5.W))
-    val rd = Wire(UInt(5.W))
+    val opcode = (() => (Wire(UInt(7.W))))()
+    val opcode_d = (() => (Wire(UInt(128.W))))()
+    val funct7 = (() => (Wire(UInt(7.W))))()
+    val funct7_d = (() => (Wire(UInt(128.W))))()
+    val funct3 = (() => (Wire(UInt(3.W))))()
+    val funct3_d = (() => (Wire(UInt(8.W))))()
+    val rs1 = (() => (Wire(UInt(5.W))))()
+    val rs2 = (() => (Wire(UInt(5.W))))()
+    val rd = (() => (Wire(UInt(5.W))))()
     
-    val I_imm = Wire(SInt(rv_width.W)) // sign extend
-    val S_imm = Wire(SInt(rv_width.W)) // sign extend
-    val B_imm = Wire(SInt(rv_width.W)) // sign extend
-    val U_imm = Wire(UInt(rv_width.W)) // sign extend, imm to upper
-    val U_imm_s = Wire(SInt(rv_width.W))
-    val J_imm = Wire(SInt(rv_width.W)) // sign extend
-    val Csr_imm = Wire(UInt(rv_width.W)) // zero extend
-    val Csr_imm_tmp = Wire(UInt(rv_width.W)) // make sure cast to rv_width bit
-    val Csr_num = Wire(UInt(12.W)) // exactly
-    val I_imm_b = Wire(new I_imm_bundle)
-    val S_imm_b = Wire(new S_imm_bundle)
-    val B_imm_b = Wire(new B_imm_bundle)
-    val U_imm_b = Wire(new U_imm_bundle)
-    val J_imm_b = Wire(new J_imm_bundle)
-    val inst_imm = Wire(UInt(rv_width.W))
+    val I_imm = (() => (Wire(SInt(rv_width.W))))()  // sign extend
+    val S_imm = (() => (Wire(SInt(rv_width.W))))()  // sign extend
+    val B_imm = (() => (Wire(SInt(rv_width.W))))()  // sign extend
+    val U_imm = (() => (Wire(UInt(rv_width.W))))()  // sign extend, imm to upper
+    val U_imm_s = (() => (Wire(SInt(rv_width.W))))()
+    val J_imm = (() => (Wire(SInt(rv_width.W))))()  // sign extend
+    val Csr_imm = (() => (Wire(UInt(rv_width.W))))()  // zero extend
+    val Csr_imm_tmp = (() => (Wire(UInt(rv_width.W))))()  // make sure cast to rv_width bit
+    val Csr_num = (() => (Wire(UInt(12.W))))()  // exactly
+    val I_imm_b = (() => (Wire(new I_imm_bundle)))()
+    val S_imm_b = (() => (Wire(new S_imm_bundle)))()
+    val B_imm_b = (() => (Wire(new B_imm_bundle)))()
+    val U_imm_b = (() => (Wire(new U_imm_bundle)))()
+    val J_imm_b = (() => (Wire(new J_imm_bundle)))()
+    val inst_imm = (() => (Wire(UInt(rv_width.W))))()
     val inst_i = Wire(UInt(1.W))
     val inst_s = Wire(UInt(1.W))
     val inst_b = Wire(UInt(1.W))
@@ -401,8 +387,8 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     inst_xori := (opcode_d(0x13) === 1.U) && (funct3_d(4) === 1.U)
     inst_ori := (opcode_d(0x13) === 1.U) && (funct3_d(6) === 1.U)
     inst_andi := (opcode_d(0x13) === 1.U) && (funct3_d(7) === 1.U)
-    inst_slli := (opcode_d(0x13) === 1.U) && (funct3_d(1) === 1.U) /* && (funct7_d(0x0) === 1.U)*/ // gcc would like to gen non-std code
-    inst_srli := (opcode_d(0x13) === 1.U) && (funct3_d(5) === 1.U) /* && (funct7_d(0x0) === 1.U)*/
+    inst_slli := (opcode_d(0x13) === 1.U) && (funct3_d(1) === 1.U) && (funct7_d(0x0) | funct7_d(0x1) === 1.U)
+    inst_srli := (opcode_d(0x13) === 1.U) && (funct3_d(5) === 1.U) && (funct7_d(0x0) | funct7_d(0x1) === 1.U)
     inst_srai := (opcode_d(0x13) === 1.U) && (funct3_d(5) === 1.U) && (funct7_d(0x20) === 1.U)
     inst_add := (opcode_d(0x33) === 1.U) && (funct3_d(0) === 1.U) && (funct7_d(0x0) === 1.U)
     inst_sub := (opcode_d(0x33) === 1.U) && (funct3_d(0) === 1.U) && (funct7_d(0x20) === 1.U)
@@ -605,14 +591,18 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     
     io.data_addr := alu_result
     
+    val is_mmio = Wire(UInt(1.W))
+    is_mmio := (io.data_addr < 0x80000000L.U)
     // Data load and store related
     es_load := inst_lw | inst_lh | inst_lhu | inst_lb | inst_lbu | inst_lwu | inst_ld
     es_store := inst_sd | inst_sw | inst_sh | inst_sb
     es_branch := inst_b | inst_jal | inst_jalr // jump instruction is dealed with the same schema
-    io.data_write := es_write_r
-    io.data_read := es_read_r
+    io.data_write_mem := es_write_r & ~is_mmio
+    io.data_read_mem := es_read_r & ~is_mmio
+    io.data_write_mmio := es_write_r & is_mmio
+    io.data_read_mmio := es_read_r & is_mmio
     es_data_handshake := io.data_read_valid === 1.U && io.data_data_ack === 1.U
-    es_addr_handshake := (io.data_write | io.data_read) === 1.U && io.data_req_ack === 1.U
+    es_addr_handshake := (io.data_write_mmio | io.data_write_mem | io.data_read_mmio | io.data_read_mem) === 1.U && io.data_req_ack === 1.U
     val es_write_set = RegInit(0.U(1.W))
     val es_read_set = RegInit(0.U(1.W))
     val es_write_ex = Wire(UInt(1.W))

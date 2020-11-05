@@ -8,10 +8,6 @@ MB is short for my chip in Esperanto
 
 使用chisel实现一支持risc-v 64 IMZicsr指令集的CPU，支持异常和Machine态，可运行RT-Thread系统。
 
-### 当前目标
-
-考虑到当前时间有限，经调研，启动RT-Thread最少需求为risc-v 32 IZicsr并支持异常和Machine态。
-
 ## 整体结构
 
 当前设计为二级流水线（取指&执行）。
@@ -41,10 +37,15 @@ EX级进行指令译码执行访存写回，若为访存指令则发出访存请
 
 2020.10.16 RT-Thread带异常情形跑通
 
+2020.10.26 分支预测器
+
+2020.11.4 RV64IZicsr
+
+2020.11.6 AXI Crossbar
+
 ### TODO
 
-1. 分支预测器
-2. 测试框架进一步完善
+1. PTW
 
 **Note that any branch other than `release` is not stable, functions may break without warning.**
 

@@ -5,7 +5,7 @@ import chisel3.util.HasBlackBoxInline
 
 class AXI_interface extends Bundle {
     private val data_width = 64
-    private val addr_width = 20 // 1 Megabyte should be enough for us
+    private val addr_width = 64 // 1 Megabyte should be enough for us
     private val wstrb_width = data_width / 8
     private val id_width = 8
     val awid = Input(UInt(data_width.W))
@@ -45,6 +45,32 @@ class AXI_interface extends Bundle {
     val rready = Input(UInt(1.W))
 }
 
+class AXI_lite_interface extends Bundle {
+    private val data_width = 64
+    private val addr_width = 64 // 1 Megabyte should be enough for us
+    private val wstrb_width = data_width / 8
+    private val id_width = 8
+    val awaddr = Input(UInt(addr_width.W))
+    val awprot = Input(UInt(3.W))
+    val awvalid = Input(UInt(1.W))
+    val awready = Output(UInt(1.W))
+    val wdata = Input(UInt(data_width.W))
+    val wstrb = Input(UInt(wstrb_width.W))
+    val wvalid = Input(UInt(1.W))
+    val wready = Output(UInt(1.W))
+    val bresp = Output(UInt(2.W))
+    val bvalid = Output(UInt(1.W))
+    val bready = Input(UInt(1.W))
+    val araddr = Input(UInt(addr_width.W))
+    val arprot = Input(UInt(3.W))
+    val arvalid = Input(UInt(1.W))
+    val arready = Output(UInt(1.W))
+    val rdata = Output(UInt(data_width.W))
+    val rresp = Output(UInt(2.W))
+    val rvalid = Output(UInt(1.W))
+    val rready = Input(UInt(1.W))
+}
+
 class AXI_fake_serial extends Module {
     private val data_width = 64
     private val addr_width = 20 // 1 Megabyte should be enough for us
@@ -52,7 +78,7 @@ class AXI_fake_serial extends Module {
     private val id_width = 8
     val io = IO( new Bundle() {
         // we only listen to the write channel
-        val awaddr = Input(UInt(data_width.W))
+        val awaddr = Input(UInt(addr_width.W))
         val awvalid = Input(UInt(1.W))
         val wvalid = Input(UInt(1.W))
         val wdata = Input(UInt(data_width.W))
@@ -420,4 +446,23 @@ endmodule
 /*
 Origin copyright of this AXI RAM file:
 
+Copyright (c) 2018 Alex Forencich
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 */

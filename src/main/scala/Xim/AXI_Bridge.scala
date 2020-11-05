@@ -6,7 +6,6 @@ import chisel3.util.HasBlackBoxInline
 
 class AXI_Bridge(width: Int) extends BlackBox with HasBlackBoxInline {
     val io = IO(Flipped(new AXI_interface {
-        // note that all was flipped
         val clock = Output(Clock())
         val reset = Output(Reset())
         // CPU side

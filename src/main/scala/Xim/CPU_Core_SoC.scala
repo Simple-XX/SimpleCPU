@@ -3,17 +3,10 @@ package Xim
 
 import chisel3._
 
-class CPU_Core(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
+class CPU_Core_SoC(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     val io = IO(new Bundle {
         val axi_mem = Flipped(new AXI_interface)
-        val axi_mmio = Flipped(new AXI_interface)
-        // for debug purpose
-        val reg_wen          = Output(UInt(1.W))
-        val reg_wdata        = Output(UInt(rv_width.W))
-        val reg_waddr        = Output(UInt(5.W))
-        val es_instr         = Output(UInt(32.W))
-        val es_pc            = Output(UInt(rv_width.W))
-        val es_reg_a0        = Output(UInt(rv_width.W))
+        val axi_mmio = Flipped(new AXI_lite_interface)
     })
     val inst_addr        = Wire(UInt(rv_width.W))
     val inst_req_valid   = Wire(UInt(1.W))
@@ -79,14 +72,6 @@ class CPU_Core(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     IF_Stage.io.next_branch := branch_predicter.io.IF_next_branch
     branch_predicter.io.EX_new_instr := EX_Stage.io.branch_new_instr
     branch_predicter.io.EX_br_taken := EX_Stage.io.branch_br_taken
-    
-    // debug part
-    io.reg_waddr := EX_Stage.io.es_reg_waddr
-    io.reg_wdata := EX_Stage.io.es_reg_wdata
-    io.reg_wen := EX_Stage.io.es_reg_wen
-    io.es_instr := EX_Stage.io.es_instr
-    io.es_pc := EX_Stage.io.es_pc
-    io.es_reg_a0 := EX_Stage.io.es_reg_a0
     
     val CPU_Bridge = Module(new AXI_Bridge(64))
     CPU_Bridge.io.clock := clock
@@ -173,44 +158,28 @@ class CPU_Core(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     CPU_Bridge.io.rvalid := io.axi_mem.rvalid
     io.axi_mem.rready := CPU_Bridge.io.rready
     
-    io.axi_mmio.awid := MMIO_Bridge.io.awid
     io.axi_mmio.awaddr := MMIO_Bridge.io.awaddr
-    io.axi_mmio.awlen := MMIO_Bridge.io.awlen
-    io.axi_mmio.awsize := MMIO_Bridge.io.awsize
-    io.axi_mmio.awburst := MMIO_Bridge.io.awburst
-    io.axi_mmio.awlock := MMIO_Bridge.io.awlock
-    io.axi_mmio.awcache := MMIO_Bridge.io.awcache
     io.axi_mmio.awprot := MMIO_Bridge.io.awprot
     io.axi_mmio.awvalid := MMIO_Bridge.io.awvalid
     MMIO_Bridge.io.awready := io.axi_mmio.awready
     io.axi_mmio.wdata := MMIO_Bridge.io.wdata
     io.axi_mmio.wstrb := MMIO_Bridge.io.wstrb
-    io.axi_mmio.wlast := MMIO_Bridge.io.wlast
     io.axi_mmio.wvalid := MMIO_Bridge.io.wvalid
     MMIO_Bridge.io.wready := io.axi_mmio.wready
-    MMIO_Bridge.io.bid := io.axi_mmio.bid
     MMIO_Bridge.io.bresp := io.axi_mmio.bresp
     MMIO_Bridge.io.bvalid := io.axi_mmio.bvalid
     io.axi_mmio.bready := MMIO_Bridge.io.bready
-    io.axi_mmio.arid := MMIO_Bridge.io.arid
     io.axi_mmio.araddr := MMIO_Bridge.io.araddr
-    io.axi_mmio.arlen := MMIO_Bridge.io.arlen
-    io.axi_mmio.arsize := MMIO_Bridge.io.arsize
-    io.axi_mmio.arburst := MMIO_Bridge.io.arburst
-    io.axi_mmio.arlock := MMIO_Bridge.io.arlock
-    io.axi_mmio.arcache := MMIO_Bridge.io.arcache
     io.axi_mmio.arprot := MMIO_Bridge.io.arcache
     io.axi_mmio.arvalid := MMIO_Bridge.io.arvalid
     MMIO_Bridge.io.arready := io.axi_mmio.arready
-    MMIO_Bridge.io.rid := io.axi_mmio.rid
     MMIO_Bridge.io.rdata := io.axi_mmio.rdata
     MMIO_Bridge.io.rresp := io.axi_mmio.rresp
-    MMIO_Bridge.io.rlast := io.axi_mmio.rlast
     MMIO_Bridge.io.rvalid := io.axi_mmio.rvalid
     io.axi_mmio.rready := MMIO_Bridge.io.rready
     
 }
 
-object CPU_Core extends App {
-    chisel3.Driver.execute(args, () => new CPU_Core)
+object CPU_Core_SoC extends App {
+    chisel3.Driver.execute(args, () => new CPU_Core_SoC())
 }

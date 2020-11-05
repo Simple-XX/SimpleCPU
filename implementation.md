@@ -114,3 +114,13 @@ SUBW: ok -> currently implemented as no W
 SLLW: ok -> currently implemented as no W
 SRLW: NOT OK (higher bits may come in) -> implemented
 SRAW: NOT OK (higher bits affect sig) -> implemented
+
+### Memory related design
+
+Inst and data sram-like=> AXI1
+IPTW => AXI2 (WIP)
+DPTW => AXI3 (WIP)
+
+Crossbar: 
+1. master: AXI1 and AXI2
+2. slave: mem and mmio

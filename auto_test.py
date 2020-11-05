@@ -13,7 +13,7 @@ for file in files:
         continue
     if  re.match('.*dump', file) != None:
         continue
-    if  re.match('rv64mi-p-csr', file) != None:
+    if  re.match('rv64ui-p-', file) != None:
         ans_files.append(file)
 
 # print(ans_files)
