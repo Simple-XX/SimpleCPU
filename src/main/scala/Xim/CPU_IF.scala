@@ -7,6 +7,7 @@ class CPU_IF(val rv_width: Int = 64) extends Module {
     val io = IO(new Bundle {
         val inst_addr = Output(UInt(rv_width.W))
         val inst_req_valid = Output(UInt(1.W))
+        val inst_req_mmio = Output(UInt(1.W))
         val inst_req_ack = Input(UInt(1.W))
         
         val inst_data = Input(UInt(rv_width.W))
@@ -45,8 +46,11 @@ class CPU_IF(val rv_width: Int = 64) extends Module {
     
     val next_pc = Wire(UInt(rv_width.W))
     val next_fs_ex = RegInit(0.U(1.W))
+    val next_pc_mmio = Wire(UInt(1.W))
     val fs_ex = RegInit(0.U(1.W))
-    val fs_pc_r = RegInit((0x7ffffffcL).U(rv_width.W))
+    val fs_pc_r = RegInit((0x3ffffffcL).U(rv_width.W))
+    next_pc_mmio := (next_pc < 0x80000000L.U)
+    io.inst_req_mmio := next_pc_mmio
     
     // some handy signals
     val addr_handshake = Wire(UInt(1.W))

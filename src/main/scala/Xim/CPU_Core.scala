@@ -92,14 +92,11 @@ class CPU_Core(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     CPU_Bridge.io.clock := clock
     CPU_Bridge.io.reset := reset
     
-    CPU_Bridge.io.inst_req := inst_req_valid
+    CPU_Bridge.io.inst_req := inst_req_valid & ~IF_Stage.io.inst_req_mmio
     CPU_Bridge.io.inst_wr := 0.U
     CPU_Bridge.io.inst_size := 2.U
     CPU_Bridge.io.inst_addr := inst_addr
     CPU_Bridge.io.inst_wdata := 0.U
-    inst_data := CPU_Bridge.io.inst_rdata
-    inst_req_ack := CPU_Bridge.io.inst_addr_ok
-    inst_valid := CPU_Bridge.io.inst_data_ok
     
     CPU_Bridge.io.data_req := data_write_mem | data_read_mem
     CPU_Bridge.io.data_wr := data_write_mem
@@ -113,14 +110,14 @@ class CPU_Core(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     MMIO_Bridge.io.clock := clock
     MMIO_Bridge.io.reset := reset
     
-    MMIO_Bridge.io.inst_req := 0.U // do not send any request with inst for now
+    MMIO_Bridge.io.inst_req := inst_req_valid & IF_Stage.io.inst_req_mmio // do not send any request with inst for now
     MMIO_Bridge.io.inst_wr := 0.U
     MMIO_Bridge.io.inst_size := 2.U
     MMIO_Bridge.io.inst_addr := inst_addr
     MMIO_Bridge.io.inst_wdata := 0.U
-    //inst_data := MMIO_Bridge.io.inst_rdata
-    //inst_req_ack := MMIO_Bridge.io.inst_addr_ok
-    //inst_valid := MMIO_Bridge.io.inst_data_ok
+    
+    inst_req_ack := (IF_Stage.io.inst_req_mmio & MMIO_Bridge.io.inst_addr_ok) | (~IF_Stage.io.inst_req_mmio & CPU_Bridge.io.inst_addr_ok)
+    inst_valid := (IF_Stage.io.inst_req_mmio & MMIO_Bridge.io.inst_data_ok) | (~IF_Stage.io.inst_req_mmio & CPU_Bridge.io.inst_data_ok)
     
     MMIO_Bridge.io.data_req := data_write_mmio | data_read_mmio
     MMIO_Bridge.io.data_wr := data_write_mmio
@@ -128,14 +125,20 @@ class CPU_Core(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     MMIO_Bridge.io.data_addr := data_addr
     MMIO_Bridge.io.data_wdata := data_write_data
     
-    when (MMIO_Bridge.io.data_data_ok === 1.U) {
+    when (EX_Stage.io.is_mmio === 1.U) {
         data_read_data := MMIO_Bridge.io.data_rdata
     } .otherwise {
         data_read_data := CPU_Bridge.io.data_rdata
     }
     
-    data_req_ack := MMIO_Bridge.io.data_addr_ok | CPU_Bridge.io.data_addr_ok
-    data_read_valid := MMIO_Bridge.io.data_data_ok | CPU_Bridge.io.data_data_ok
+    when (IF_Stage.io.inst_req_mmio === 1.U) {
+        inst_data := MMIO_Bridge.io.inst_rdata
+    } .otherwise {
+        inst_data := CPU_Bridge.io.inst_rdata
+    }
+    
+    data_req_ack := (EX_Stage.io.is_mmio & MMIO_Bridge.io.data_addr_ok) | (~EX_Stage.io.is_mmio & CPU_Bridge.io.data_addr_ok)
+    data_read_valid := (EX_Stage.io.is_mmio & MMIO_Bridge.io.data_data_ok) | (~EX_Stage.io.is_mmio & CPU_Bridge.io.data_data_ok)
     
     io.axi_mem.awid := CPU_Bridge.io.awid
     io.axi_mem.awaddr := CPU_Bridge.io.awaddr

@@ -171,7 +171,7 @@ class CSR(val rv_width: Int = 64) extends Module {
     val csr_mstatus = RegInit(reset_mstatus)
     // MTVEC
     val reset_mtvec = WireInit(0.U.asTypeOf(new mtvec))
-    reset_mtvec.base := 0x20000000.U
+    reset_mtvec.base := 0x10000000.U
     val csr_mtvec = RegInit(reset_mtvec)
     // MIP
     val reset_mip = WireInit(0.U.asTypeOf(new mip))
@@ -256,6 +256,7 @@ class CSR(val rv_width: Int = 64) extends Module {
     // MIP
     // TODO: revise updating condition of MIP and MIE
     when (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MIP) {
+        // TODO: should be read only here
         csr_mip.MEIP := io.es_csr_write_data(11)
     }
     

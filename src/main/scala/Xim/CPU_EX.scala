@@ -13,6 +13,7 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
         val data_write_mmio = Output(UInt(1.W))
         val data_read_mmio = Output(UInt(1.W))
         val data_size = Output(UInt(2.W))
+        val is_mmio = Output(UInt(1.W))
         
         val data_write_data = Output(UInt(rv_width.W))
         
@@ -593,6 +594,7 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     
     val is_mmio = Wire(UInt(1.W))
     is_mmio := (io.data_addr < 0x80000000L.U)
+    io.is_mmio := (es_load | es_store) & is_mmio
     // Data load and store related
     es_load := inst_lw | inst_lh | inst_lhu | inst_lb | inst_lbu | inst_lwu | inst_ld
     es_store := inst_sd | inst_sw | inst_sh | inst_sb
