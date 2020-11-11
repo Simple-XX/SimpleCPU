@@ -5,6 +5,7 @@ import chisel3._
 
 class CPU_Core_SoC(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     val io = IO(new Bundle {
+        val meip = Input(UInt(1.W))
         val axi_mem = Flipped(new AXI_interface)
         val axi_mmio = Flipped(new AXI_lite_interface)
     })

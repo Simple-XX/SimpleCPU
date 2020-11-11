@@ -117,10 +117,6 @@ SRAW: NOT OK (higher bits affect sig) -> implemented
 
 ### Memory related design
 
-Inst and data sram-like=> AXI1
-IPTW => AXI2 (WIP)
-DPTW => AXI3 (WIP)
+Inst and data sram-like => MMIO ? AXI_MEM : AXI_MMIO
 
-Crossbar: 
-1. master: AXI1 and AXI2
-2. slave: mem and mmio
+todo: add a cross bar for PTW

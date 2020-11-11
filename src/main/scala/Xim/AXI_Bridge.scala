@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util.HasBlackBoxInline
 
 
-class AXI_Bridge(width: Int) extends BlackBox with HasBlackBoxInline {
+class AXI_Bridge(width: Int = 64) extends BlackBox with HasBlackBoxInline {
     val io = IO(Flipped(new AXI_interface {
         val clock = Output(Clock())
         val reset = Output(Reset())

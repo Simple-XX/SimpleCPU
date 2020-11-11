@@ -110,4 +110,50 @@ csr_mscratch.value := RegInit(0.U)
 csr_mepc.value := RegInit(0.U)
  */
 
+/*
+// PTW_Bridge.io <> io.AXI part
+    io.awid := PTW_Bridge.io.awid
+    io.awaddr := PTW_Bridge.io.awaddr
+    io.awlen := PTW_Bridge.io.awlen
+    io.awsize := PTW_Bridge.io.awsize
+    io.awburst := PTW_Bridge.io.awburst
+    io.awlock := PTW_Bridge.io.awlock
+    io.awcache := PTW_Bridge.io.awcache
+    io.awprot := PTW_Bridge.io.awprot
+    io.awvalid := PTW_Bridge.io.awvalid
+    PTW_Bridge.io.awready := io.awready
+    io.wdata := PTW_Bridge.io.wdata
+    io.wstrb := PTW_Bridge.io.wstrb
+    io.wlast := PTW_Bridge.io.wlast
+    io.wvalid := PTW_Bridge.io.wvalid
+    PTW_Bridge.io.wready := io.wready
+    PTW_Bridge.io.bid := io.bid
+    PTW_Bridge.io.bresp := io.bresp
+    PTW_Bridge.io.bvalid := io.bvalid
+    io.bready := PTW_Bridge.io.bready
+    io.arid := PTW_Bridge.io.arid
+    io.araddr := PTW_Bridge.io.araddr
+    io.arlen := PTW_Bridge.io.arlen
+    io.arsize := PTW_Bridge.io.arsize
+    io.arburst := PTW_Bridge.io.arburst
+    io.arlock := PTW_Bridge.io.arlock
+    io.arcache := PTW_Bridge.io.arcache
+    io.arprot := PTW_Bridge.io.arcache
+    io.arvalid := PTW_Bridge.io.arvalid
+    PTW_Bridge.io.arready := io.arready
+    PTW_Bridge.io.rid := io.rid
+    PTW_Bridge.io.rdata := io.rdata
+    PTW_Bridge.io.rresp := io.rresp
+    PTW_Bridge.io.rlast := io.rlast
+    PTW_Bridge.io.rvalid := io.rvalid
+    io.rready := PTW_Bridge.io.rready
+* */
 
+/*
+    // we do not use SRAM-like interface data channel
+    PTW_Bridge.io.data_req := 0.U
+    PTW_Bridge.io.data_wr := 0.U
+    PTW_Bridge.io.data_size := 0.U
+    PTW_Bridge.io.data_addr := 0.U
+    PTW_Bridge.io.data_wdata := 0.U
+* */
