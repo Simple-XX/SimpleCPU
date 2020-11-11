@@ -4,6 +4,8 @@ MB estas mia blato en Esperanto
 
 MB is short for my chip in Esperanto
 
+**This branch is being frozen, refactoring will undertaken in other branch(es).**
+
 ## 目标
 
 使用chisel实现一支持risc-v 64 IMZicsr指令集的CPU，支持异常和Machine态，可运行RT-Thread系统。
@@ -19,7 +21,7 @@ EX级进行指令译码执行访存写回，若为访存指令则发出访存请
 
 ## 进度日志：
 
-### Finished
+### Done
 
 2020.9.22 第一条指令(addi x1, zero, 100)
 
@@ -42,6 +44,8 @@ EX级进行指令译码执行访存写回，若为访存指令则发出访存请
 2020.11.4 RV64IZicsr
 
 2020.11.6 AXI Crossbar
+
+2020.11.10 RTL freeze
 
 ### TODO
 
