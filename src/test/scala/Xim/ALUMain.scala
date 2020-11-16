@@ -1,6 +1,6 @@
 // See README.md for license details.
 
-package gcd
+package Xim
 
 import chisel3._
 
@@ -8,24 +8,24 @@ import chisel3._
   * This provides an alternate way to run tests, by executing then as a main
   * From sbt (Note: the test: prefix is because this main is under the test package hierarchy):
   * {{{
-  * test:runMain gcd.GCDMain
+  * test:runMain Xim.ALUMain
   * }}}
   * To see all command line options use:
   * {{{
-  * test:runMain gcd.GCDMain --help
+  * test:runMain Xim.ALUMain --help
   * }}}
   * To run with verilator:
   * {{{
-  * test:runMain gcd.GCDMain --backend-name verilator
+  * test:runMain Xim.ALUMain --backend-name verilator
   * }}}
   * To run with verilator from your terminal shell use:
   * {{{
-  * sbt 'test:runMain gcd.GCDMain --backend-name verilator'
+  * sbt 'test:runMain Xim.ALUMain --backend-name verilator'
   * }}}
   */
-object GCDMain extends App {
-  iotesters.Driver.execute(args, () => new GCD) {
-    c => new GCDUnitTester(c)
+object ALUMain extends App {
+  iotesters.Driver.execute(args, () => new ALU) {
+    c => new ALUUnitTester(c)
   }
 }
 
@@ -44,6 +44,6 @@ object GCDMain extends App {
   * test:runMain gcd.GCDRepl --help
   * }}}
   */
-object GCDRepl extends App {
-  iotesters.Driver.executeFirrtlRepl(args, () => new GCD)
+object ALURepl extends App {
+  iotesters.Driver.executeFirrtlRepl(args, () => new ALU)
 }

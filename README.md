@@ -1,131 +1,88 @@
-Chisel Project Template
-=======================
+# 一生一芯计划
 
-You've done the Chisel [tutorials](https://github.com/ucb-bar/chisel-tutorial), and now you 
-are ready to start your own chisel project.  The following procedure should get you started
-with a clean running [Chisel3](https://github.com/freechipsproject/chisel3) project.
+MB estas mia blato en Esperanto
 
-> More and more users are finding IntelliJ to be a powerful tool for Chisel coding. See the 
-[IntelliJ Installation Guide](https://github.com/ucb-bar/chisel-template/wiki/IntelliJ-Installation-Guide) for how to install it.
+MB is short for my chip in Esperanto
 
-## Make your own Chisel3 project
-### How to get started
-The first thing you want to do is clone this repo into a directory of your own.  I'd recommend creating a chisel projects directory somewhere
-```sh
-mkdir ~/ChiselProjects
-cd ~/ChiselProjects
+**This branch is being frozen, refactoring will undertaken in other branch(es).**
 
-git clone https://github.com/ucb-bar/chisel-template.git MyChiselProject
-cd MyChiselProject
-```
-### Make your project into a fresh git repo
-There may be more elegant way to do it, but the following works for me. **Note:** this project comes with a magnificent 339 line (at this writing) .gitignore file.
- You may want to edit that first in case we missed something, whack away at it, or start it from scratch.
- 
-#### Clear out the old git stuff
-```sh
-rm -rf .git
-git init
-git add .gitignore *
-```
+## 目标
 
-#### Rename project in build.sbt file
-Use your favorite text editor to change the first line of the **build.sbt** file
-(it ships as ```name := "chisel-module-template"```) to correspond 
-to your project.<br/>
-Perhaps as ```name := "my-chisel-project"```
+使用chisel实现一支持risc-v 64 IMZicsr指令集的CPU，支持异常和Machine态，可运行RT-Thread系统。
 
-#### Clean up the README.md file
-Again use you editor of choice to make the README specific to your project.
-Be sure to update (or delete) the License section and add a LICENSE file of your own.
+## 整体结构
 
-#### Commit your changes
-```
-git commit -m 'Starting MyChiselProject'
-```
-Connecting this up to github or some other remote host is an exercise left to the reader.
+当前设计为二级流水线（取指&执行）。
 
-### Did it work?
-You should now have a project based on Chisel3 that can be run.<br/>
-So go for it, at the command line in the project root.
-```sh
-sbt 'testOnly gcd.GCDTester -- -z Basic'
-```
->This tells the test harness to only run the test in GCDTester that contains the word Basic
-There are a number of other examples of ways to run tests in there, but we just want to see that
-one works.
+### 当前设计
 
-You should see a whole bunch of output that ends with something like the following lines
-```
-[info] [0.001] SEED 1540570744913
-test GCD Success: 168 tests passed in 1107 cycles in 0.067751 seconds 16339.24 Hz
-[info] [0.050] RAN 1102 CYCLES PASSED
-[info] GCDTester:
-[info] GCD
-[info] Basic test using Driver.execute
-[info] - should be used as an alternative way to run specification
-[info] using --backend-name verilator
-[info] running with --is-verbose
-[info] running with --generate-vcd-output on
-[info] running with --generate-vcd-output off
-[info] ScalaTest
-[info] Run completed in 3 seconds, 184 milliseconds.
-[info] Total number of tests run: 1
-[info] Suites: completed 1, aborted 0
-[info] Tests: succeeded 1, failed 0, canceled 0, ignored 0, pending 0
-[info] All tests passed.
-[info] Passed: Total 1, Failed 0, Errors 0, Passed 1
-[success] Total time: 5 s, completed Oct 26, 2018 9:19:07 AM
-```
-If you see the above then...
+IF级发出指令请求后等待握手，等待请求握手完成后完成数据握手，方可进入下一流水级。
+EX级进行指令译码执行访存写回，若为访存指令则发出访存请求，请求握手完成后完成数据握手。注意一旦进入就可计算出分支发生与否及相应地址。若发生分支跳转则前递给上一流水级，提供下一pc值并设置本级reload信号，使得下一指令不产生实际效果。
 
-### It worked!
-You are ready to go. We have a few recommended practices and things to do.
-* Use packages and following conventions for [structure](http://www.scala-sbt.org/0.13/docs/Directories.html) and [naming](http://docs.scala-lang.org/style/naming-conventions.html)
-* Package names should be clearly reflected in the testing hierarchy
-* Build tests for all your work.
-* This template includes a dependency on the Chisel3 IOTesters, this is a reasonable starting point for most tests
-* You can remove this dependency in the build.sbt file if necessary
-* Change the name of your project in the build.sbt file
-* Change your README.md
+## 进度日志：
 
-There are [instructions for generating Verilog](https://github.com/freechipsproject/chisel3/wiki/Frequently-Asked-Questions#get-me-verilog) on the Chisel wiki.
+### Done
 
-Some backends (verilator for example) produce VCD files by default, while other backends (firrtl and treadle) do not.
-You can control the generation of VCD files with the `--generate-vcd-output` flag.
+2020.9.22 第一条指令(addi x1, zero, 100)
 
-To run the simulation and generate a VCD output file regardless of the backend:
-```bash
-sbt 'test:runMain gcd.GCDMain --generate-vcd-output on'
-```
+2020.9.24 分支指令（beq zero, zero, 0x10）
 
-To run the simulation and suppress the generation of a VCD output file:
-```bash
-sbt 'test:runMain gcd.GCDMain --generate-vcd-output off'
-```
+2020.9.26 AXI RAM接入，构建简易SoC
 
-## License
-This is free and unencumbered software released into the public domain.
+2020.10.2 CSR指令接入
 
-Anyone is free to copy, modify, publish, use, compile, sell, or
-distribute this software, either in source code form or as a compiled
-binary, for any purpose, commercial or non-commercial, and by any
-means.
+2020.10.3 开跑部分功能测试
 
-In jurisdictions that recognize copyright laws, the author or authors
-of this software dedicate any and all copyright interest in the
-software to the public domain. We make this dedication for the benefit
-of the public at large and to the detriment of our heirs and
-successors. We intend this dedication to be an overt act of
-relinquishment in perpetuity of all present and future rights to this
-software under copyright law.
+2020.10.6 增加risc-v test自动测试脚本，确认全部RV32I指令跑通
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
+2020.10.15 RT-Thread不开中断跑通
 
-For more information, please refer to <http://unlicense.org/>
+2020.10.16 RT-Thread带异常情形跑通
+
+2020.10.26 分支预测器
+
+2020.11.4 RV64IZicsr
+
+2020.11.6 AXI Crossbar
+
+2020.11.10 RTL freeze
+
+### TODO
+
+1. PTW
+
+**Note that any branch other than `release` is not stable, functions may break without warning.**
+
+## 运行RT-Thread
+
+![运行效果](./imgs/rtt.png)
+
+### 前期准备
+
+使用[RTT for mb-core](https://github.com/chenguokai/rtt-mbcore/tree/master/bsp/mb-core) 处源码编译生成rtthread.elf，后使用[tests](https://github.com/chenguokai/mbcore-tests) 处脚本31.rtt.sh处理ELF格式文件生成可供AXI RAM加载的bin文件，然后调整仿真用AXI RAM的bin文件加载路径即可。
+
+### 运行
+
+推荐使用sbt工具调用SoC_Main中Type_Three的方法运行。该情形下i变量循环次数即为期待测试指令数。
+
+## 测试框架实现细节
+
+> 注意当前源码内一些硬编码路径可能需要根据本机实际情况做调整
+
+### Type 1: any predicatable benchmark test
+
+程序正常执行甚至发生预期的异常时，几乎不会出现前后两条指令PC值一致的情形，如此一来判定指令前进变得异常简单，只需以相邻周期PC值是否有所改变作为新指令到来判据。
+使用[isa_sim](https://github.com/ultraembedded/riscv/tree/master/isa_sim)
+所提供的ISA模拟器，可导出benchmark执行trace，与上述指令判断依据结合即可实现指令比对。
+
+### Type 2: risc-v test related auto test
+
+所有risc-v 官方ISA测试集均在pass/fail时调用ecall指令，而在其余位置不出现ecall，且pass向a0寄存器写0，fail向a0寄存器写1。可由此借助auto_test.py实现自动化测试。
+
+### Type 3: any test without test feedback
+
+Type 1无需进行trace比较的变种，往往用于带有时钟中断的较复杂系统测试。
+
+## 生成verilog
+
+每一非BlackBox组件内均含object，可直接生成对应组件的verilog源码。
