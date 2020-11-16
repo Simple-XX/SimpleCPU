@@ -136,6 +136,7 @@ class CPU_Core_SoC(val rv_width: Int = 64, inSOC: Boolean = false) extends Modul
     io.mem.awcache := CPU_Bridge.io.awcache
     io.mem.awprot := CPU_Bridge.io.awprot
     io.mem.awvalid := CPU_Bridge.io.awvalid
+    io.mem.ruser := 0.U
     CPU_Bridge.io.awready := io.mem.awready
     io.mem.wdata := CPU_Bridge.io.wdata
     io.mem.wstrb := CPU_Bridge.io.wstrb
@@ -146,6 +147,7 @@ class CPU_Core_SoC(val rv_width: Int = 64, inSOC: Boolean = false) extends Modul
     CPU_Bridge.io.bresp := io.mem.bresp
     CPU_Bridge.io.bvalid := io.mem.bvalid
     io.mem.bready := CPU_Bridge.io.bready
+    io.mem.buser := 0.U
     io.mem.arid := CPU_Bridge.io.arid
     io.mem.araddr := CPU_Bridge.io.araddr
     io.mem.arlen := CPU_Bridge.io.arlen

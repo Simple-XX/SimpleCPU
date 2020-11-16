@@ -159,6 +159,7 @@ class CPU_Core(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     CPU_Bridge.io.bresp := io.axi_mem.bresp
     CPU_Bridge.io.bvalid := io.axi_mem.bvalid
     io.axi_mem.bready := CPU_Bridge.io.bready
+    io.axi_mem.buser := 0.U
     io.axi_mem.arid := CPU_Bridge.io.arid
     io.axi_mem.araddr := CPU_Bridge.io.araddr
     io.axi_mem.arlen := CPU_Bridge.io.arlen
@@ -175,6 +176,7 @@ class CPU_Core(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     CPU_Bridge.io.rlast := io.axi_mem.rlast
     CPU_Bridge.io.rvalid := io.axi_mem.rvalid
     io.axi_mem.rready := CPU_Bridge.io.rready
+    io.axi_mem.ruser := 0.U
     
     io.axi_mmio.awid := MMIO_Bridge.io.awid
     io.axi_mmio.awaddr := MMIO_Bridge.io.awaddr
@@ -195,6 +197,7 @@ class CPU_Core(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     MMIO_Bridge.io.bresp := io.axi_mmio.bresp
     MMIO_Bridge.io.bvalid := io.axi_mmio.bvalid
     io.axi_mmio.bready := MMIO_Bridge.io.bready
+    io.axi_mmio.buser := 0.U
     io.axi_mmio.arid := MMIO_Bridge.io.arid
     io.axi_mmio.araddr := MMIO_Bridge.io.araddr
     io.axi_mmio.arlen := MMIO_Bridge.io.arlen
@@ -211,7 +214,7 @@ class CPU_Core(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     MMIO_Bridge.io.rlast := io.axi_mmio.rlast
     MMIO_Bridge.io.rvalid := io.axi_mmio.rvalid
     io.axi_mmio.rready := MMIO_Bridge.io.rready
-    
+    io.axi_mmio.ruser := 0.U
 }
 
 object CPU_Core extends App {

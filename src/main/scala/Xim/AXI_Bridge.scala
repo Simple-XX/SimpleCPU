@@ -65,11 +65,13 @@ class AXI_Bridge(width: Int = 64) extends BlackBox with HasBlackBoxInline {
                output [7 :0] arlen        ,
                output [2 :0] arsize       ,
                output [1 :0] arburst      ,
-               output [1 :0] arlock        ,
+               output [1 :0] arlock       ,
                output [3 :0] arcache      ,
                output [2 :0] arprot       ,
                output        arvalid      ,
                input         arready      ,
+               input         aruser       ,
+               input  [3:0]  arqos        ,
                //r
                input  [3 :0] rid          ,
                input  [63:0] rdata        ,
@@ -77,6 +79,7 @@ class AXI_Bridge(width: Int = 64) extends BlackBox with HasBlackBoxInline {
                input         rlast        ,
                input         rvalid       ,
                output        rready       ,
+               output        ruser        ,
                //aw
                output [3 :0] awid         ,
                output [63:0] awaddr       ,
@@ -88,6 +91,8 @@ class AXI_Bridge(width: Int = 64) extends BlackBox with HasBlackBoxInline {
                output [2 :0] awprot       ,
                output        awvalid      ,
                input         awready      ,
+               input         awuser       ,
+               input [3:0]   awqos        ,
                //w
                output [3 :0] wid          ,
                output [63:0] wdata        ,
@@ -99,8 +104,14 @@ class AXI_Bridge(width: Int = 64) extends BlackBox with HasBlackBoxInline {
                input  [3 :0] bid          ,
                input  [1 :0] bresp        ,
                input         bvalid       ,
-               output        bready
+               output        bready       ,
+               output        buser
            );
+           
+           
+assign ruser = 1'b0;
+assign buser = 1'b0;
+
 wire resetn = !reset;
 //addr
 reg do_req;
@@ -189,7 +200,7 @@ assign bready  = 1'b1;
 endmodule
 
 
-           
+    
     """.stripMargin
     )
     /*

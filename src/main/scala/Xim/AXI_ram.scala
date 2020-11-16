@@ -18,6 +18,8 @@ class AXI_interface extends Bundle {
     val awprot = Input(UInt(3.W))
     val awvalid = Input(UInt(1.W))
     val awready = Output(UInt(1.W))
+    val awuser = Output(UInt(1.W))
+    val awqos = Output(UInt(4.W))
     val wdata = Input(UInt(data_width.W))
     val wstrb = Input(UInt(wstrb_width.W))
     val wlast = Input(UInt(1.W))
@@ -27,6 +29,7 @@ class AXI_interface extends Bundle {
     val bresp = Output(UInt(2.W))
     val bvalid = Output(UInt(1.W))
     val bready = Input(UInt(1.W))
+    val buser = Input(UInt(1.W))
     val arid = Input(UInt(id_width.W))
     val araddr = Input(UInt(addr_width.W))
     val arlen = Input(UInt(8.W))
@@ -37,12 +40,15 @@ class AXI_interface extends Bundle {
     val arprot = Input(UInt(3.W))
     val arvalid = Input(UInt(1.W))
     val arready = Output(UInt(1.W))
+    val aruser = Output(UInt(1.W))
+    val arqos = Output(UInt(4.W))
     val rid = Output(UInt(id_width.W))
     val rdata = Output(UInt(data_width.W))
     val rresp = Output(UInt(2.W))
     val rlast = Output(UInt(1.W))
     val rvalid = Output(UInt(1.W))
     val rready = Input(UInt(1.W))
+    val ruser = Input(UInt(1.W))
 }
 
 class AXI_lite_interface extends Bundle {
@@ -132,6 +138,8 @@ class AXI_ram extends BlackBox with HasBlackBoxInline {
     input  wire [2:0]             awprot,
     input  wire                   awvalid,
     output wire                   awready,
+    output wire                   awuser,
+    output wire [3:0]             awqos,
     input  wire [DATA_WIDTH-1:0]  wdata,
     input  wire [STRB_WIDTH-1:0]  wstrb,
     input  wire                   wlast,
@@ -141,6 +149,7 @@ class AXI_ram extends BlackBox with HasBlackBoxInline {
     output wire [1:0]             bresp,
     output wire                   bvalid,
     input  wire                   bready,
+    input  wire                   buser,
     input  wire [ID_WIDTH-1:0]    arid,
     input  wire [ADDR_WIDTH-1:0]  araddr,
     input  wire [7:0]             arlen,
@@ -151,13 +160,21 @@ class AXI_ram extends BlackBox with HasBlackBoxInline {
     input  wire [2:0]             arprot,
     input  wire                   arvalid,
     output wire                   arready,
+    output wire                   aruser,
+    output wire [3:0]             arqos,
     output wire [ID_WIDTH-1:0]    rid,
     output wire [DATA_WIDTH-1:0]  rdata,
     output wire [1:0]             rresp,
     output wire                   rlast,
     output wire                   rvalid,
-    input  wire                   rready
+    input  wire                   rready,
+    input  wire                   ruser
 );
+
+assign awuser = 1'b0;
+assign awqos = 4'b0;
+assign aruser = 1'b0;
+assign arqos = 4'b0;
 
 parameter VALID_ADDR_WIDTH = ADDR_WIDTH - 3;
 parameter WORD_WIDTH = STRB_WIDTH;

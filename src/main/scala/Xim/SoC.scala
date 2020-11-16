@@ -1,6 +1,8 @@
 package Xim
 
 import chisel3._
+import chisel3.stage.{ChiselGeneratorAnnotation, ChiselStage}
+import firrtl.stage.RunFirrtlTransformAnnotation
 
 
 
@@ -42,6 +44,8 @@ class SoC(val rv_width: Int = 64) extends Module {
     RAM.io.awprot := Core.io.axi_mem.awprot
     RAM.io.awvalid := Core.io.axi_mem.awvalid
     Core.io.axi_mem.awready := RAM.io.awready
+    Core.io.axi_mem.awqos := 0.U
+    Core.io.axi_mem.awuser := 0.U
     RAM.io.wdata := Core.io.axi_mem.wdata
     RAM.io.wstrb := Core.io.axi_mem.wstrb
     RAM.io.wlast := Core.io.axi_mem.wlast
@@ -61,12 +65,15 @@ class SoC(val rv_width: Int = 64) extends Module {
     RAM.io.arprot := Core.io.axi_mem.arcache
     RAM.io.arvalid := Core.io.axi_mem.arvalid
     Core.io.axi_mem.arready := RAM.io.arready
+    Core.io.axi_mem.arqos := 0.U
+    Core.io.axi_mem.aruser := 0.U
     Core.io.axi_mem.rid := RAM.io.rid
     Core.io.axi_mem.rdata := RAM.io.rdata
     Core.io.axi_mem.rresp := RAM.io.rresp
     Core.io.axi_mem.rlast := RAM.io.rlast
     Core.io.axi_mem.rvalid := RAM.io.rvalid
     RAM.io.rready := Core.io.axi_mem.rready
+    // Core.io.axi_mem.ruser := 0.U
     
     MMIO.io.awid := Core.io.axi_mmio.awid
     MMIO.io.awaddr := Core.io.axi_mmio.awaddr
@@ -77,6 +84,8 @@ class SoC(val rv_width: Int = 64) extends Module {
     MMIO.io.awcache := Core.io.axi_mmio.awcache
     MMIO.io.awprot := Core.io.axi_mmio.awprot
     MMIO.io.awvalid := Core.io.axi_mmio.awvalid
+    Core.io.axi_mmio.awqos := 0.U
+    Core.io.axi_mmio.awuser := 0.U
     Core.io.axi_mmio.awready := MMIO.io.awready
     MMIO.io.wdata := Core.io.axi_mmio.wdata
     MMIO.io.wstrb := Core.io.axi_mmio.wstrb
@@ -96,6 +105,8 @@ class SoC(val rv_width: Int = 64) extends Module {
     MMIO.io.arcache := Core.io.axi_mmio.arcache
     MMIO.io.arprot := Core.io.axi_mmio.arcache
     MMIO.io.arvalid := Core.io.axi_mmio.arvalid
+    Core.io.axi_mmio.arqos := 0.U
+    Core.io.axi_mmio.aruser := 0.U
     Core.io.axi_mmio.arready := MMIO.io.arready
     Core.io.axi_mmio.rid := MMIO.io.rid
     Core.io.axi_mmio.rdata := MMIO.io.rdata
@@ -116,5 +127,14 @@ class SoC(val rv_width: Int = 64) extends Module {
 }
 
 object SoC extends App {
-    chisel3.Driver.execute(args, () => new SoC)
+    (new ChiselStage).execute(
+        args,
+        Seq(
+            ChiselGeneratorAnnotation(() => new SoC()),
+            RunFirrtlTransformAnnotation(new AddModulePrefix()),
+            ModulePrefixAnnotation("chenguokai_")
+        )
+    )
+    
+    //chisel3.Driver.execute(args, () => new CPU_Core_SoC())
 }
