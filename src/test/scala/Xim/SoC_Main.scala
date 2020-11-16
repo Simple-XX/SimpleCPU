@@ -1,6 +1,7 @@
 package Xim
 
 import chisel3._
+import firrtl.stage.RunFirrtlTransformAnnotation
 
 object SoC_Main_Type_One extends App {
     iotesters.Driver.execute(args, () => new SoC) {
