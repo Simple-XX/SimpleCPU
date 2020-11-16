@@ -33,7 +33,7 @@ class AXI_Bridge(width: Int = 64) extends BlackBox with HasBlackBoxInline {
     }))
     setInline("AXI_Bridge.v",
         s"""
-           module AXI_Bridge
+           module chenguokai_AXI_Bridge
            (
                input         clock,
                input         reset,

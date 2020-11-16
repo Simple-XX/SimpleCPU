@@ -2,12 +2,14 @@
 package Xim
 
 import chisel3._
+import chisel3.stage.{ChiselGeneratorAnnotation, ChiselStage}
+import firrtl.stage.RunFirrtlTransformAnnotation
 
 class CPU_Core_SoC(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     val io = IO(new Bundle {
         val meip = Input(UInt(1.W))
-        val axi_mem = Flipped(new AXI_interface)
-        val axi_mmio = Flipped(new AXI_lite_interface)
+        val mem = Flipped(new AXI_interface)
+        val mmio = Flipped(new AXI_lite_interface)
     })
     val inst_addr        = Wire(UInt(rv_width.W))
     val inst_req_valid   = Wire(UInt(1.W))
@@ -125,64 +127,73 @@ class CPU_Core_SoC(val rv_width: Int = 64, inSOC: Boolean = false) extends Modul
     data_req_ack := (EX_Stage.io.is_mmio & MMIO_Bridge.io.data_addr_ok) | (~EX_Stage.io.is_mmio & CPU_Bridge.io.data_addr_ok)
     data_read_valid := (EX_Stage.io.is_mmio & MMIO_Bridge.io.data_data_ok) | (~EX_Stage.io.is_mmio & CPU_Bridge.io.data_data_ok)
     
-    io.axi_mem.awid := CPU_Bridge.io.awid
-    io.axi_mem.awaddr := CPU_Bridge.io.awaddr
-    io.axi_mem.awlen := CPU_Bridge.io.awlen
-    io.axi_mem.awsize := CPU_Bridge.io.awsize
-    io.axi_mem.awburst := CPU_Bridge.io.awburst
-    io.axi_mem.awlock := CPU_Bridge.io.awlock
-    io.axi_mem.awcache := CPU_Bridge.io.awcache
-    io.axi_mem.awprot := CPU_Bridge.io.awprot
-    io.axi_mem.awvalid := CPU_Bridge.io.awvalid
-    CPU_Bridge.io.awready := io.axi_mem.awready
-    io.axi_mem.wdata := CPU_Bridge.io.wdata
-    io.axi_mem.wstrb := CPU_Bridge.io.wstrb
-    io.axi_mem.wlast := CPU_Bridge.io.wlast
-    io.axi_mem.wvalid := CPU_Bridge.io.wvalid
-    CPU_Bridge.io.wready := io.axi_mem.wready
-    CPU_Bridge.io.bid := io.axi_mem.bid
-    CPU_Bridge.io.bresp := io.axi_mem.bresp
-    CPU_Bridge.io.bvalid := io.axi_mem.bvalid
-    io.axi_mem.bready := CPU_Bridge.io.bready
-    io.axi_mem.arid := CPU_Bridge.io.arid
-    io.axi_mem.araddr := CPU_Bridge.io.araddr
-    io.axi_mem.arlen := CPU_Bridge.io.arlen
-    io.axi_mem.arsize := CPU_Bridge.io.arsize
-    io.axi_mem.arburst := CPU_Bridge.io.arburst
-    io.axi_mem.arlock := CPU_Bridge.io.arlock
-    io.axi_mem.arcache := CPU_Bridge.io.arcache
-    io.axi_mem.arprot := CPU_Bridge.io.arcache
-    io.axi_mem.arvalid := CPU_Bridge.io.arvalid
-    CPU_Bridge.io.arready := io.axi_mem.arready
-    CPU_Bridge.io.rid := io.axi_mem.rid
-    CPU_Bridge.io.rdata := io.axi_mem.rdata
-    CPU_Bridge.io.rresp := io.axi_mem.rresp
-    CPU_Bridge.io.rlast := io.axi_mem.rlast
-    CPU_Bridge.io.rvalid := io.axi_mem.rvalid
-    io.axi_mem.rready := CPU_Bridge.io.rready
+    io.mem.awid := CPU_Bridge.io.awid
+    io.mem.awaddr := CPU_Bridge.io.awaddr
+    io.mem.awlen := CPU_Bridge.io.awlen
+    io.mem.awsize := CPU_Bridge.io.awsize
+    io.mem.awburst := CPU_Bridge.io.awburst
+    io.mem.awlock := CPU_Bridge.io.awlock
+    io.mem.awcache := CPU_Bridge.io.awcache
+    io.mem.awprot := CPU_Bridge.io.awprot
+    io.mem.awvalid := CPU_Bridge.io.awvalid
+    CPU_Bridge.io.awready := io.mem.awready
+    io.mem.wdata := CPU_Bridge.io.wdata
+    io.mem.wstrb := CPU_Bridge.io.wstrb
+    io.mem.wlast := CPU_Bridge.io.wlast
+    io.mem.wvalid := CPU_Bridge.io.wvalid
+    CPU_Bridge.io.wready := io.mem.wready
+    CPU_Bridge.io.bid := io.mem.bid
+    CPU_Bridge.io.bresp := io.mem.bresp
+    CPU_Bridge.io.bvalid := io.mem.bvalid
+    io.mem.bready := CPU_Bridge.io.bready
+    io.mem.arid := CPU_Bridge.io.arid
+    io.mem.araddr := CPU_Bridge.io.araddr
+    io.mem.arlen := CPU_Bridge.io.arlen
+    io.mem.arsize := CPU_Bridge.io.arsize
+    io.mem.arburst := CPU_Bridge.io.arburst
+    io.mem.arlock := CPU_Bridge.io.arlock
+    io.mem.arcache := CPU_Bridge.io.arcache
+    io.mem.arprot := CPU_Bridge.io.arcache
+    io.mem.arvalid := CPU_Bridge.io.arvalid
+    CPU_Bridge.io.arready := io.mem.arready
+    CPU_Bridge.io.rid := io.mem.rid
+    CPU_Bridge.io.rdata := io.mem.rdata
+    CPU_Bridge.io.rresp := io.mem.rresp
+    CPU_Bridge.io.rlast := io.mem.rlast
+    CPU_Bridge.io.rvalid := io.mem.rvalid
+    io.mem.rready := CPU_Bridge.io.rready
     
-    io.axi_mmio.awaddr := MMIO_Bridge.io.awaddr
-    io.axi_mmio.awprot := MMIO_Bridge.io.awprot
-    io.axi_mmio.awvalid := MMIO_Bridge.io.awvalid
-    MMIO_Bridge.io.awready := io.axi_mmio.awready
-    io.axi_mmio.wdata := MMIO_Bridge.io.wdata
-    io.axi_mmio.wstrb := MMIO_Bridge.io.wstrb
-    io.axi_mmio.wvalid := MMIO_Bridge.io.wvalid
-    MMIO_Bridge.io.wready := io.axi_mmio.wready
-    MMIO_Bridge.io.bresp := io.axi_mmio.bresp
-    MMIO_Bridge.io.bvalid := io.axi_mmio.bvalid
-    io.axi_mmio.bready := MMIO_Bridge.io.bready
-    io.axi_mmio.araddr := MMIO_Bridge.io.araddr
-    io.axi_mmio.arprot := MMIO_Bridge.io.arcache
-    io.axi_mmio.arvalid := MMIO_Bridge.io.arvalid
-    MMIO_Bridge.io.arready := io.axi_mmio.arready
-    MMIO_Bridge.io.rdata := io.axi_mmio.rdata
-    MMIO_Bridge.io.rresp := io.axi_mmio.rresp
-    MMIO_Bridge.io.rvalid := io.axi_mmio.rvalid
-    io.axi_mmio.rready := MMIO_Bridge.io.rready
+    io.mmio.awaddr := MMIO_Bridge.io.awaddr
+    io.mmio.awprot := MMIO_Bridge.io.awprot
+    io.mmio.awvalid := MMIO_Bridge.io.awvalid
+    MMIO_Bridge.io.awready := io.mmio.awready
+    io.mmio.wdata := MMIO_Bridge.io.wdata
+    io.mmio.wstrb := MMIO_Bridge.io.wstrb
+    io.mmio.wvalid := MMIO_Bridge.io.wvalid
+    MMIO_Bridge.io.wready := io.mmio.wready
+    MMIO_Bridge.io.bresp := io.mmio.bresp
+    MMIO_Bridge.io.bvalid := io.mmio.bvalid
+    io.mmio.bready := MMIO_Bridge.io.bready
+    io.mmio.araddr := MMIO_Bridge.io.araddr
+    io.mmio.arprot := MMIO_Bridge.io.arcache
+    io.mmio.arvalid := MMIO_Bridge.io.arvalid
+    MMIO_Bridge.io.arready := io.mmio.arready
+    MMIO_Bridge.io.rdata := io.mmio.rdata
+    MMIO_Bridge.io.rresp := io.mmio.rresp
+    MMIO_Bridge.io.rvalid := io.mmio.rvalid
+    io.mmio.rready := MMIO_Bridge.io.rready
     
 }
 
 object CPU_Core_SoC extends App {
-    chisel3.Driver.execute(args, () => new CPU_Core_SoC())
+    (new ChiselStage).execute(
+        args,
+        Seq(
+            ChiselGeneratorAnnotation(() => new CPU_Core_SoC()),
+            RunFirrtlTransformAnnotation(new AddModulePrefix()),
+            ModulePrefixAnnotation("chenguokai_")
+        )
+    )
+    
+    //chisel3.Driver.execute(args, () => new CPU_Core_SoC())
 }
