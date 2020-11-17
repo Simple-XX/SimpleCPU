@@ -16,11 +16,13 @@
 
 7. break exceptions (No need if you do not need to debug)
 
+8. MMU (WIP but not tested)
+
 ## Non-standard features:
 
 1. CSR-mapped `mtime` and `mtimecmp`
 
-We use 0x7c0 as `mtimelo`, 0x7c1 as `mtimehi`, 0x7c2 as `mtimecmplo`, 0x7c3 as `mtimecmphi`
+We use 0x7c0 as `mtime`, 0x7c2 as `mtimecmp`
 
 
 ## Implementation Documentations
