@@ -38,9 +38,7 @@ Two-stage pipeline (Instruction fetch and Execution)
 
 ### TODO
 
-1. PTW
-
-**Note that any branch other than `release` is not stable, functions may break without warning.**
+Check [implementation.md](implementation.md)
 
 ## Run RT-Thread
 

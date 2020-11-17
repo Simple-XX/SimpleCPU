@@ -97,7 +97,9 @@ We divide VPN into three part: VPN2(9) VPN1(9) VPN0(9), PPN into three part: PPN
 Vaddr(11, 0) -> always keep untouched
 
 **4KB record**:Vaddr(38, 12) -> throw to match, Paddr: PPN2 || PPN1 || PPN(0) || Vaddr(11, 0)
+
 **2MB record**:Vaddr(38, 21) -> throw to match, Vaddr(20, 12) keep untouched, Paddr: PPN2 || PPN1 || Vaddr(20, 0)
+
 **1GB record**:Vaddr(38, 30) -> throw to match, Vaddr(29, 12) keep untouched, Paddr: PPN2 || Vaddr(29, 0)
 
 TLB retire algorithm: loop queue
