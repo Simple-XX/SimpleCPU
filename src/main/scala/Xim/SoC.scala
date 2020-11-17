@@ -1,5 +1,9 @@
 package Xim
 
+/* This is a simple SoC with a fake UART
+* Designed to be able to run some local tests
+* */
+
 import chisel3._
 import chisel3.stage.{ChiselGeneratorAnnotation, ChiselStage}
 import firrtl.stage.RunFirrtlTransformAnnotation

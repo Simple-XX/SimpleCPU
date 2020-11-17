@@ -1,5 +1,7 @@
 package Xim
 
+/* Note that this is still under development */
+
 import Chisel.switch
 import Chisel.Cat
 import chisel3._

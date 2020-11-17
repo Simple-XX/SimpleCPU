@@ -89,7 +89,6 @@ class CPU_IF(val rv_width: Int = 64) extends Module {
     
     addr_handshake := io.inst_req_valid === 1.U && io.inst_req_ack === 1.U
     data_handshake := io.inst_ack === 1.U && io.inst_valid === 1.U
-    // printf(p"io.inst_valid = ${io.inst_valid} fs_pc = ${io.fs_pc}\n")
     fs_ready_go := data_handshake | data_handshake_r | io.fs_ex
     // if we encounter an misaligned exception, we are ready to go
     
@@ -141,22 +140,9 @@ class CPU_IF(val rv_width: Int = 64) extends Module {
     
     io.inst_req_valid := inst_req_valid_r // maybe we should consider some reload signals in the future
     
-    /*
-    io.inst_ack := inst_ack_r;
-  
-    when (addr_handshake === 1.U) {
-      // handshake done
-      inst_ack_r := 1.U
-    } .elsewhen (data_handshake === 1.U) {
-      inst_ack_r := 0.U
-    }
-     */
     io.inst_ack := 1.U // always acknowledge
     
     io.fs_inst := fs_inst_r
-    
-    // printf("inst fetched in IF = %x addr_handshake = %d data_handshake = %d " +
-    //  "branch_valid = %d branch target = %x\n", io.inst_data, addr_handshake, data_handshake, io.br_valid, io.br_target)
     
     val branch_target_gen = Module(new branch_target(rv_width))
     

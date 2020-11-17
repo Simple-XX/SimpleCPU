@@ -3,6 +3,10 @@ package Xim
 import chisel3._
 import chisel3.util._
 
+/* Note that I did not find a proper verilog crossbar implementation.
+*  DO NOT USE THIS, IT DOES NOT WORK!
+*  */
+
 class Crossbar_interface extends Bundle {
     private val S_COUNT = 3
     private val M_COUNT = 2

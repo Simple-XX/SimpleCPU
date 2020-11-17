@@ -1,5 +1,7 @@
 package Xim
 
+/* This is intended for the test of Page Table Walker */
+
 import chisel3._
 
 class ptw_independent(width: Int = 64) extends Module {

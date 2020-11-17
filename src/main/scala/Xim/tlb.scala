@@ -4,6 +4,8 @@ import Chisel.{OHToUInt, log2Ceil}
 import chisel3._
 import chisel3.util
 
+/* A WIP TLB interface */
+
 /* a variable entry count TLB module */
 class tlb(TLB_entry_count: Int = 8, width: Int = 64) extends Module {
     val io = IO(new Bundle {
