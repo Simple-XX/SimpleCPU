@@ -20,6 +20,23 @@ trait CSRConstants {
     // custom encoding
     val MTIME = 0x7c0.U
     val MTIMECMP = 0x7c2.U
+
+    // Supervisor Mode CSRs
+    // Trap Setup
+    val SSTATUS = 0x100.U
+    val SEDELEG = 0x102.U
+    val SIDELEG = 0x103.U
+    val SIE = 0x104.U
+    val STVEC = 0x105.U
+    val SCOUNTEREN = 0x106.U
+    // Trap Handling
+    val SSCRATCH = 0x140.U
+    val SEPC = 0x141.U
+    val SCAUSE = 0x142.U
+    val STVAL = 0x143.U
+    val SIP = 0x144.U
+    // Protection and Translation
+    // val SATP = 0x180.U
 }
 
 trait ExceptionConstants {

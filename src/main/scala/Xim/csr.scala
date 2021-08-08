@@ -62,7 +62,10 @@ class CSR(val rv_width: Int = 64) extends Module {
 
     class mstatus extends Bundle {
         val SD = UInt(1.W) // hardwired to zero
-        val reserved = UInt(40.W) // hardwired to zero
+        val reserved = UInt(27.W) // hardwired to zero
+        val SXL = UInt(2.W) // RV32:1 RV64:2
+        val UXL = UInt(2.W) // RV32:1 RV64:2
+        val reserved_1 = UInt(9.W) // hardwired to zero
         val TSR = UInt(1.W) // hardwired to zero
         val TW = UInt(1.W) // hardwired to zero
         val TVM = UInt(1.W) // hardwired to zero
@@ -147,6 +150,11 @@ class CSR(val rv_width: Int = 64) extends Module {
 
     class mtval extends Bundle {
         val value = UInt(rv_width.W)
+    }
+
+    // Supervisor Mode CSRs
+    class sstatus extends Bundle {
+
     }
     
     // val es_ex_set = RegInit(0.U(1.W))

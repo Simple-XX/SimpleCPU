@@ -209,7 +209,7 @@ initial begin
     end
     // mem[0] = 32'h863; mem[1] = 32'h06400093; mem[2] = 32'h00000013; mem[3] = 32'h00000013; mem[4] = 32'h00102023; mem[5] = 32'h00002103;
     // mem[6] = 32'h00f00093; mem[7] = 32'h34101073; mem[8] = 32'h34109073; mem[9] = 32'h34186073; mem[10] = 32'h341020f3;
-    mem_file = $$fopen("/Users/cgk/ownCloud/课程/一生一芯/ict/test.bin", "r");
+    mem_file = $$fopen("/home/wangns/rtt-mbcore/bsp/mb-core/rtthread_reversed.bin", "r");
     $$fread(mem, mem_file);
 end
 
