@@ -66,6 +66,16 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     io.es_instr := es_instr
     io.es_pc := es_pc
     
+    //priviledge level
+    val priv_level = Module(new PriviledgeReg)
+    val priv_wen = Wire(Bool(1.W))
+    val priv_wlevel = Wire(UInt(2.W))
+    val priv_rlevel = Wire(UInt(2.W))
+
+    priv_level.io.wen := priv_wen
+    priv_level.io.wlevel := priv_wlevel
+    priv_rlevel := priv_level.io.rlevel
+
     val CSR_module = Module(new CSR)
     val CSR_ex = Wire(UInt(1.W))
     val CSR_excode = Wire(UInt(rv_width.W))
@@ -80,6 +90,7 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     val CSR_mip = Wire(UInt(rv_width.W))
     val CSR_mie = Wire(UInt(rv_width.W))
     val CSR_mstatus_mie = Wire(UInt(rv_width.W))
+    val CSR_mstatus_tsr = Wire(UInt(1.W))
     val es_csr = Wire(UInt(1.W))
     val timer_int = Wire(UInt(1.W))
     val timer_int_r = RegInit(0.U(1.W))
@@ -179,6 +190,8 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     lazy val inst_csrrci = Wire(UInt(1.W))
     lazy val inst_fence_i = Wire(UInt(1.W))
     lazy val inst_mret = Wire(UInt(1.W))
+    lazy val inst_sret = Wire(UInt(1.W))
+    lazy val inst_uret = Wire(UInt(1.W))
     val inst_reserved = Wire(UInt(1.W)) // reserved instruction
     val es_ecall = Wire(UInt(1.W))
     
@@ -229,7 +242,7 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     val inst_j = Wire(UInt(1.W))
     val inst_r = Wire(UInt(1.W))
     
-    inst_i := inst_mret | inst_jalr | inst_lb | inst_lh | inst_lw | inst_lwu | inst_ld | inst_lbu | inst_lhu |
+    inst_i := inst_uret | inst_sret | inst_mret | inst_jalr | inst_lb | inst_lh | inst_lw | inst_lwu | inst_ld | inst_lbu | inst_lhu |
       inst_addi | inst_addiw | inst_slti | inst_sltiu | inst_xori | inst_ori | inst_andi | inst_fence_i
     inst_s := inst_sb | inst_sh | inst_sw | inst_sd
     inst_b := inst_beq | inst_bne | inst_blt | inst_bge | inst_bltu | inst_bgeu
@@ -352,6 +365,8 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     funct3_d := funct3_decoder.io.out
     
     inst_mret := opcode_d(0x73) === 1.U && I_imm === 0x302.S && funct3_d(0) === 1.U
+    inst_sret := opcode_d(0x73) === 1.U && I_imm === 0x102.S && funct3_d(0) === 1.U
+    inst_uret := opcode_d(0x73) === 1.U && I_imm === 0x002.S && funct3_d(0) === 1.U
     inst_lui := (opcode_d(0x37) === 1.U)
     inst_auipc := (opcode_d(0x17) === 1.U)
     inst_jal := (opcode_d(0x6f) === 1.U)
@@ -438,6 +453,10 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
         inst_fence_i === 1.U ||
         // RV64 Machine
         inst_mret === 1.U ||
+        // RV64 Supervisor
+        (inst_sret === 1.U && CSR_mstatus_tsr === 0.U) ||
+        // RV64 User
+        inst_uret === 1.U ||
         // RV64Zicsr
         inst_csrrw === 1.U || inst_csrrs === 1.U || inst_csrrc === 1.U || inst_csrrc === 1.U || inst_csrrwi === 1.U || inst_csrrsi === 1.U || inst_csrrci === 1.U
       )
@@ -702,7 +721,7 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     br_miss := (inst_b) & (~branch_taken_condition) & (es_next_branch === 1.U) & (~inst_j)
     
     // TODO: consider ex related
-    inst_reload_no_ex := br_taken | br_miss | /*inst_jal |*/ inst_jalr | inst_mret
+    inst_reload_no_ex := br_taken | br_miss | /*inst_jal |*/ inst_jalr | inst_mret | inst_sret | inst_uret
     inst_reload := inst_reload_no_ex | es_ex
     io.br_valid := inst_reload
     
@@ -713,6 +732,8 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
         io.br_target := es_pc + 4.U
     } .elsewhen (inst_mret === 1.U) {
         io.br_target := CSR_mepc
+    } .elsewhen (inst_sret === 1.U) {
+        io.br_target := CSR_sepc
     } .otherwise {
         io.br_target := 0.U
     }
@@ -766,11 +787,14 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     CSR_module.io.fault_addr := CSR_fault_addr
     CSR_module.io.fault_instr := CSR_fault_instr
     CSR_module.io.inst_mret := inst_mret
+    CSR_module.io.inst_sret := inst_sret
+    CSR_module.io.priv_level := priv_rlevel
     CSR_read_data := CSR_module.io.es_csr_read_data
     CSR_mtvec := CSR_module.io.mtrap_entry
     CSR_mip := CSR_module.io.mip
     CSR_mie := CSR_module.io.mie
     CSR_mstatus_mie := CSR_module.io.mstatus_mie
+    CSR_mstatus_tsr := CSR_module.io.mstatus_tsr
     CSR_mepc := CSR_module.io.mepc
     timer_int := CSR_module.io.time_int
     

@@ -25,6 +25,7 @@ class CSR(val rv_width: Int = 64) extends Module {
         val mip = Output(UInt(rv_width.W))
         val mie = Output(UInt(rv_width.W))
         val mstatus_mie = Output(UInt(1.W))
+        val mstatus_tsr = Output(UInt(1.W))
         
         // for mtval
         val fault_addr = Input(UInt(rv_width.W))
@@ -32,6 +33,11 @@ class CSR(val rv_width: Int = 64) extends Module {
         
         // mret
         val inst_mret = Input(UInt(1.W))
+        // sret
+        val inst_sret = Input(UInt(1.W))
+
+        // priviledge level
+        val priv_level = Input(UInt(2.W))
     })
     // unimplemented signal:
     
@@ -66,7 +72,7 @@ class CSR(val rv_width: Int = 64) extends Module {
         val SXL = UInt(2.W) // RV32:1 RV64:2
         val UXL = UInt(2.W) // RV32:1 RV64:2
         val reserved_1 = UInt(9.W) // hardwired to zero
-        val TSR = UInt(1.W) // hardwired to zero
+        val TSR = UInt(1.W)
         val TW = UInt(1.W) // hardwired to zero
         val TVM = UInt(1.W) // hardwired to zero
         val MXR = UInt(1.W) // hardwired to zero
@@ -154,7 +160,23 @@ class CSR(val rv_width: Int = 64) extends Module {
 
     // Supervisor Mode CSRs
     class sstatus extends Bundle {
-
+        val SD = UInt(1.W)
+        val reserved = UInt(29.W)
+        val UXL = UInt(2.W)
+        val reserved_1 = UInt(12.W)
+        val MXR = UInt(1.W)   //currently not used because we do not support virtual memory
+        val SUM = UInt(1.W)   //currently not used because we do not support virtual memory
+        val reserved_2 = UInt(1.W)
+        val XS = UInt(2.W)
+        val FS = UInt(2.W)
+        val reserved_3 = UInt(4.W)
+        val SPP = UInt(1.W)
+        val reserved_4 = UInt(2.W)
+        val SPIE = UInt(1.W)
+        val UPIE = UInt(1.W)
+        val reserved_5 = UInt(2.W)
+        val SIE = UInt(1.W)
+        val UIE = UInt(1.W)
     }
     
     // val es_ex_set = RegInit(0.U(1.W))
@@ -207,6 +229,11 @@ class CSR(val rv_width: Int = 64) extends Module {
     // MTVAL
     val reset_mtval = WireInit(0.U.asTypeOf(new mtval))
     val csr_mtval = RegInit(reset_mtval)
+
+    //SSTATUS
+    val reset_sstatus = WireInit(0.U.asTypeOf(new sstatus))
+    //...
+    val csr_sstatus = RegInit(reset_sstatus)
     
     when (io.es_new_instr === 1.U && io.es_ex === 1.U) {
         es_ex_once := 1.U
@@ -250,6 +277,7 @@ class CSR(val rv_width: Int = 64) extends Module {
     }
     
     io.mstatus_mie := csr_mstatus.MIE
+    io.mstatus_tsr := csr_mstatus.TSR
 
 
     // MTVEC
