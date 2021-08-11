@@ -50,3 +50,12 @@ trait ExceptionConstants {
     val StoreAddrMisaligned = 0x00000006.U
     val MEcall = 0x0000000b.U
 }
+
+trait PriviledgeLevelConstants {
+    val User = UInt(2.W)
+    val Supervisor = UInt(2.W)
+    val Machine = UInt(2.W)
+    User = 0.U
+    Supervisor = 1.U
+    Machine = 3.U 
+}

@@ -26,7 +26,12 @@ class CSR(val rv_width: Int = 64) extends Module {
         val mie = Output(UInt(rv_width.W))
         val mstatus_mie = Output(UInt(1.W))
         val mstatus_tsr = Output(UInt(1.W))
-        
+        val mstatus_mpp = Output(UInt(2.W))
+
+        // Supervisor related
+        val sstatus_spp = Output(UInt(1.W))
+        val sepc = Output(UInt(rv_width.W))
+
         // for mtval
         val fault_addr = Input(UInt(rv_width.W))
         val fault_instr = Input(UInt(32.W))
@@ -38,6 +43,9 @@ class CSR(val rv_width: Int = 64) extends Module {
 
         // priviledge level
         val priv_level = Input(UInt(2.W))
+
+        // reload signal, avoiding illegal state transition
+        val inst_reload = Input(UInt(1.W))
     })
     // unimplemented signal:
     
@@ -178,6 +186,10 @@ class CSR(val rv_width: Int = 64) extends Module {
         val SIE = UInt(1.W)
         val UIE = UInt(1.W)
     }
+
+    class sepc extends Bundle {
+        val value = UInt(rv_width.W)
+    }
     
     // val es_ex_set = RegInit(0.U(1.W))
     val es_ex_once = Wire(UInt(1.W))
@@ -198,6 +210,8 @@ class CSR(val rv_width: Int = 64) extends Module {
     // MSTATUS
     val reset_mstatus = WireInit(0.U.asTypeOf(new mstatus))
     reset_mstatus.MPP := 0x3.U // Always at machine mode
+    reset_mstatus.SXL := 0x2.U // RV64
+    reset_mstatus.UXL := 0x2.U // RV64
     val csr_mstatus = RegInit(reset_mstatus)
     // MTVEC
     val reset_mtvec = WireInit(0.U.asTypeOf(new mtvec))
@@ -230,10 +244,13 @@ class CSR(val rv_width: Int = 64) extends Module {
     val reset_mtval = WireInit(0.U.asTypeOf(new mtval))
     val csr_mtval = RegInit(reset_mtval)
 
-    //SSTATUS
+    // SSTATUS
     val reset_sstatus = WireInit(0.U.asTypeOf(new sstatus))
     //...
     val csr_sstatus = RegInit(reset_sstatus)
+    // SEPC
+    val reset_sepc = WireInit(0.U.asTypeOf(new sepc))
+    val csr_sepc = RegInit(reset_sepc)
     
     when (io.es_new_instr === 1.U && io.es_ex === 1.U) {
         es_ex_once := 1.U
@@ -241,7 +258,7 @@ class CSR(val rv_width: Int = 64) extends Module {
         es_ex_once := 0.U
     }
     
-    when (io.es_new_instr === 1.U && io.inst_mret === 1.U) {
+    when (io.es_new_instr === 1.U && io.inst_mret === 1.U && inst_reload === 0.U) {
         mret_once := 1.U
     } .otherwise {
         mret_once := 0.U
@@ -259,8 +276,10 @@ class CSR(val rv_width: Int = 64) extends Module {
 
     csr_mhartid.zero := 0.U
 
+    object priv_consts extends PriviledgeLevelConstants
+
     // MSTATUS
-    when (es_ex_once === 1.U) {
+    when (es_ex_once === 1.U && (priv_level === priv_consts.Machine || priv_level === priv_consts.Supervisor)) {
         csr_mstatus.MPIE := csr_mstatus.MIE
     } .elsewhen (mret_once === 1.U) {
         csr_mstatus.MPIE := 1.U // according to the SPEC
@@ -268,17 +287,26 @@ class CSR(val rv_width: Int = 64) extends Module {
         csr_mstatus.MPIE := io.es_csr_write_data(7)
     }
     
-    when (es_ex_once === 1.U) {
+    when (es_ex_once === 1.U && (priv_level === priv_consts.Machine || priv_level === priv_consts.Supervisor)) {
         csr_mstatus.MIE := 0.U
     } .elsewhen (mret_once === 1.U) {
         csr_mstatus.MIE := csr_mstatus.MPIE
     } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MSTATUS) {
         csr_mstatus.MIE := io.es_csr_write_data(3)
     }
+
+    when (es_ex_once === 1.U && (priv_level === priv_consts.Machine || priv_level === priv_consts.Supervisor)) {
+        csr_mstatus.MPP := priv_level
+    } .elsewhen (mret_once === 1.U) {
+        csr_mstatus.MPP := priv_consts.User // by spec
+    } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MSTATUS) {
+        csr_mstatus.MPP := io.es_csr_write_data(12,11)
+    }
     
     io.mstatus_mie := csr_mstatus.MIE
     io.mstatus_tsr := csr_mstatus.TSR
-
+    io.mstatus_mpp := csr_mstatus.MPP
+    io.sstatus_spp := csr_sstatus.SPP
 
     // MTVEC
     when (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MTVEC) {
@@ -355,13 +383,14 @@ class CSR(val rv_width: Int = 64) extends Module {
     }
 
     // MEPC
-    when (es_ex_once === 1.U) {
+    when (es_ex_once === 1.U && (priv_level === priv_consts.Machine || priv_level === priv_consts.Supervisor)) {
         csr_mepc.value := io.es_ex_pc
     } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MEPC) {
         csr_mepc.value := io.es_csr_write_data
     }
     
     io.mepc := csr_mepc.asUInt()
+    io.sepc := csr_sepc.asUInt()
 
     // MCAUSE
     // excode is generated in pipeline
@@ -381,6 +410,38 @@ class CSR(val rv_width: Int = 64) extends Module {
         csr_mtval.value := io.fault_addr
     } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MTVAL) {
         csr_mtval.value := io.es_csr_write_data
+    }
+
+    // SSTATUS
+    when (es_ex_once === 1.U && priv_level === priv_consts.User) {
+        csr_sstatus.SPIE := csr_sstatus.SIE
+    } .elsewhen (sret_once === 1.U) {
+        csr_sstatus.SPIE := 1.U // according to the SPEC
+    } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.SSTATUS) {
+        csr_sstatus.SPIE := io.es_csr_write_data(5)
+    }
+    
+    when (es_ex_once === 1.U && priv_level === priv_consts.User) {
+        csr_sstatus.SIE := 0.U
+    } .elsewhen (sret_once === 1.U) {
+        csr_sstatus.SIE := csr_sstatus.SPIE
+    } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.SSTATUS) {
+        csr_sstatus.SIE := io.es_csr_write_data(1)
+    }
+
+    when (es_ex_once === 1.U && priv_level === priv_consts.User) {
+        csr_sstatus.SPP := 0.U // User
+    } .elsewhen (sret_once === 1.U) {
+        csr_sstatus.SPP := 0.U // User, by spec
+    } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.SSTATUS) {
+        csr_sstatus.SPP := io.es_csr_write_data(8)
+    }
+
+    // SEPC
+    when (es_ex_once === 1.U && priv_level === priv_consts.User) {
+        csr_sepc.value := io.es_ex_pc
+    } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.SEPC) {
+        csr_sepc.value := io.es_csr_write_data
     }
 
     // READ Data path

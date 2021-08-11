@@ -71,10 +71,12 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     val priv_wen = Wire(Bool(1.W))
     val priv_wlevel = Wire(UInt(2.W))
     val priv_rlevel = Wire(UInt(2.W))
+    val next_priv_level = Wire(UInt(2.W))
 
     priv_level.io.wen := priv_wen
     priv_level.io.wlevel := priv_wlevel
     priv_rlevel := priv_level.io.rlevel
+    priv_wlevel := next_priv_level
 
     val CSR_module = Module(new CSR)
     val CSR_ex = Wire(UInt(1.W))
@@ -91,12 +93,15 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     val CSR_mie = Wire(UInt(rv_width.W))
     val CSR_mstatus_mie = Wire(UInt(rv_width.W))
     val CSR_mstatus_tsr = Wire(UInt(1.W))
+    val CSR_mstatus_mpp = Wire(UInt(2.W))
+    val CSR_sstatus_spp = Wire(UInt(1.W))
     val es_csr = Wire(UInt(1.W))
     val timer_int = Wire(UInt(1.W))
     val timer_int_r = RegInit(0.U(1.W))
     val CSR_fault_addr = Wire(UInt(rv_width.W))
     val CSR_fault_instr = Wire(UInt(rv_width.W))
     val CSR_mepc = Wire(UInt(rv_width.W))
+    val CSR_sepc = Wire(UInt(rv_width.W))
     
     // branch related
     val rs1_equal_rs2 = Wire(UInt(1.W))
@@ -723,7 +728,7 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     // TODO: consider ex related
     inst_reload_no_ex := br_taken | br_miss | /*inst_jal |*/ inst_jalr | inst_mret | inst_sret | inst_uret
     inst_reload := inst_reload_no_ex | es_ex
-    io.br_valid := inst_reload
+    io.br_valid := inst_reload & ~inst_reload_r
     
     when(br_taken === 1.U /*|| inst_jal === 1.U*/ || inst_jalr === 1.U) {
         io.br_target := alu_result
@@ -789,13 +794,17 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     CSR_module.io.inst_mret := inst_mret
     CSR_module.io.inst_sret := inst_sret
     CSR_module.io.priv_level := priv_rlevel
+    CSR_module.io.inst_reload := inst_reload_r
     CSR_read_data := CSR_module.io.es_csr_read_data
     CSR_mtvec := CSR_module.io.mtrap_entry
     CSR_mip := CSR_module.io.mip
     CSR_mie := CSR_module.io.mie
     CSR_mstatus_mie := CSR_module.io.mstatus_mie
     CSR_mstatus_tsr := CSR_module.io.mstatus_tsr
+    CSR_mstatus_mpp := CSR_module.io.mstatus_mpp
+    CSR_sstatus_spp := CSR_module.io.sstatus_spp
     CSR_mepc := CSR_module.io.mepc
+    CSR_sepc := CSR_module.io.sepc
     timer_int := CSR_module.io.time_int
     
     
@@ -1040,6 +1049,26 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
         // actually 0x8000000000000007
     } .otherwise {
         es_excode := 0.U
+    }
+
+    object priv_consts extends PriviledgeLevelConstants
+
+    when (es_valid === 1.U && inst_mret === 1.U && priv_rlevel === priv_consts.Machine) {
+        next_priv_level := CSR_mstatus_mpp
+    } .elsewhen (es_valid === 1.U && inst_sret === 1.U && priv_rlevel === priv_consts.Supervisor) {
+        next_priv_level := CSR_sstatus_spp
+    } .elsewhen (es_ex === 1.U) {
+        next_priv_level := priv_consts.Machine
+    } .otherwise {
+        next_priv_level := priv_consts.Machine
+    }
+
+    when (es_valid === 1.U && (inst_mret === 1.U || inst_sret === 1.U)) {
+        priv_wen := true.B
+    } .elsewhen (es_ex === 1.U) {
+        priv_wen := true.B
+    } .otherwise {
+        priv_wen := false.B
     }
     
     io.ex_valid := es_ex
