@@ -984,8 +984,7 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     } .elsewhen (es_valid  === 1.U && es_write_ex === 1.U) {
         es_excode := excode_const.StoreAddrMisaligned
     } .elsewhen (es_valid === 1.U && timer_int_r === 1.U) {
-        es_excode := (-9223372036854775801L.S).asUInt() // excode_const.MachineTimerInt throws error here
-        // actually 0x8000000000000007
+        es_excode := excode_const.MachineTimerInt
     } .otherwise {
         es_excode := 0.U
     }

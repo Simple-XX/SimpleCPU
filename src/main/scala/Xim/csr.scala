@@ -43,6 +43,9 @@ class CSR(val rv_width: Int = 64) extends Module {
 
         // reload signal, avoiding illegal state transition
         val inst_reload = Input(UInt(1.W))
+
+        // delegate trap
+        val deleg_trap = Output(Bool())
     })
     // unimplemented signal:
     
@@ -163,6 +166,14 @@ class CSR(val rv_width: Int = 64) extends Module {
         val value = UInt(rv_width.W)
     }
 
+    class medeleg extends Bundle {
+        val value = UInt(rv_width.W)
+    }
+
+    class mideleg extends Bundle {
+        val value = UInt(rv_width.W)
+    }
+
     // Supervisor Mode CSRs
     class sstatus extends Bundle {
         val SD = UInt(1.W)
@@ -185,6 +196,48 @@ class CSR(val rv_width: Int = 64) extends Module {
     }
 
     class sepc extends Bundle {
+        val value = UInt(rv_width.W)
+    }
+
+    class scause extends Bundle {
+        val interrupt = UInt(1.W)
+        val excode = UInt((rv_width - 1).W)
+    }
+
+    class stvec extends Bundle {
+        val base = UInt((rv_width-2).W)
+        val mode = UInt(2.W)
+    }
+
+    class sie extends Bundle {
+        val reserved = UInt(54.W)
+        val SEIE = UInt(1.W)
+        val UEIE = UInt(1.W)
+        val reserved_1 = UInt(2.W)
+        val STIE = UInt(1.W)
+        val UTIE = UInt(1.W)
+        val reserved_2 = UInt(2.W)
+        val SSIE = UInt(1.W)
+        val USIE = UInt(1.W)
+    }
+
+    class sip extends Bundle {
+        val reserved = UInt(54.W)
+        val SEIP = UInt(1.W)
+        val UEIP = UInt(1.W)
+        val reserved_1 = UInt(2.W)
+        val STIP = UInt(1.W)
+        val UTIP = UInt(1.W)
+        val reserved_2 = UInt(2.W)
+        val SSIP = UInt(1.W)
+        val USIP = UInt(1.W)
+    }
+
+    class stval extends Bundle {
+        val value = UInt(rv_width.W)
+    }
+
+    class sscratch extends Bundle {
         val value = UInt(rv_width.W)
     }
     
@@ -241,6 +294,13 @@ class CSR(val rv_width: Int = 64) extends Module {
     // MTVAL
     val reset_mtval = WireInit(0.U.asTypeOf(new mtval))
     val csr_mtval = RegInit(reset_mtval)
+    // MEDELEG
+    val reset_medeleg = WireInit(0.U.asTypeOf(new medeleg))
+    //reset_medeleg.value(11) := 0.U  // m-mode ecall exception hardwired to zero
+    val csr_medeleg = RegInit(reset_medeleg)
+    // MIDELEG
+    val reset_mideleg = WireInit(0.U.asTypeOf(new mideleg))
+    val csr_mideleg = RegInit(reset_mideleg)
 
     // SSTATUS
     val reset_sstatus = WireInit(0.U.asTypeOf(new sstatus))
@@ -249,6 +309,33 @@ class CSR(val rv_width: Int = 64) extends Module {
     // SEPC
     val reset_sepc = WireInit(0.U.asTypeOf(new sepc))
     val csr_sepc = RegInit(reset_sepc)
+
+    // STVEC
+    val reset_stvec = WireInit(0.U.asTypeOf(new stvec))
+    reset_stvec.base := 0x10000000.U
+    val csr_stvec = RegInit(reset_stvec)
+    // SIP
+    val reset_sip = WireInit(0.U.asTypeOf(new sip))
+    reset_sip.STIP := 0.U
+    val csr_sip = RegInit(reset_sip)
+    // SIE
+    val reset_sie = WireInit(0.U.asTypeOf(new sie))
+    val csr_sie = RegInit(reset_sie)
+    // SSCRATCH
+    val reset_sscratch = WireInit(0.U.asTypeOf(new sscratch))
+    val csr_sscratch = RegInit(reset_sscratch)
+    // SCAUSE
+    val reset_scause = WireInit(0.U.asTypeOf(new scause))
+    val csr_scause = RegInit(reset_scause)
+    // STVAL
+    val reset_stval = WireInit(0.U.asTypeOf(new stval))
+    val csr_stval = RegInit(reset_stval)
+
+    val isInterrupt = Wire(Bool())
+    isInterrupt := io.es_excode(rv_width - 1) === 1.U
+    val deleg = Wire(Bool())
+    deleg := ((isInterrupt && csr_mideleg.value(io.es_excode(3,0))) || (!isInterrupt && csr_medeleg.value(io.es_excode(3,0))) && io.priv_level =/= priv_consts.Machine)
+    io.deleg_trap := deleg
     
     when (io.es_new_instr === 1.U && io.es_ex === 1.U) {
         es_ex_once := 1.U
@@ -281,7 +368,7 @@ class CSR(val rv_width: Int = 64) extends Module {
     csr_mhartid.zero := 0.U
 
     // MSTATUS
-    when (es_ex_once === 1.U && (io.priv_level === priv_consts.Machine || io.priv_level === priv_consts.Supervisor)) {
+    when (es_ex_once === 1.U && !deleg) {
         csr_mstatus.MPIE := csr_mstatus.MIE
     } .elsewhen (mret_once === 1.U) {
         csr_mstatus.MPIE := 1.U // according to the SPEC
@@ -289,7 +376,7 @@ class CSR(val rv_width: Int = 64) extends Module {
         csr_mstatus.MPIE := io.es_csr_write_data(7)
     }
     
-    when (es_ex_once === 1.U && (io.priv_level === priv_consts.Machine || io.priv_level === priv_consts.Supervisor)) {
+    when (es_ex_once === 1.U && !deleg) {
         csr_mstatus.MIE := 0.U
     } .elsewhen (mret_once === 1.U) {
         csr_mstatus.MIE := csr_mstatus.MPIE
@@ -297,12 +384,22 @@ class CSR(val rv_width: Int = 64) extends Module {
         csr_mstatus.MIE := io.es_csr_write_data(3)
     }
 
-    when (es_ex_once === 1.U && (io.priv_level === priv_consts.Machine || io.priv_level === priv_consts.Supervisor)) {
+    when (es_ex_once === 1.U && !deleg) {
         csr_mstatus.MPP := io.priv_level
     } .elsewhen (mret_once === 1.U) {
         csr_mstatus.MPP := priv_consts.User // by spec
     } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MSTATUS) {
         csr_mstatus.MPP := io.es_csr_write_data(12,11)
+    }
+
+    when (es_ex_once === 1.U && deleg) {
+        csr_mstatus.SPP := io.priv_level
+        csr_mstatus.SPIE := csr_mstatus.SIE
+        csr_mstatus.SIE := 0.U
+    } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MSTATUS) {
+        csr_mstatus.SPP := io.es_csr_write_data(8)
+        csr_mstatus.SPIE := io.es_csr_write_data(5)
+        csr_mstatus.SIE := io.es_csr_write_data(1)
     }
     
     //io.mstatus_mie := csr_mstatus.MIE
@@ -385,7 +482,7 @@ class CSR(val rv_width: Int = 64) extends Module {
     }
 
     // MEPC
-    when (es_ex_once === 1.U && (io.priv_level === priv_consts.Machine || io.priv_level === priv_consts.Supervisor)) {
+    when (es_ex_once === 1.U && !deleg) {
         csr_mepc.value := io.es_ex_pc
     } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MEPC) {
         csr_mepc.value := io.es_csr_write_data
@@ -396,7 +493,7 @@ class CSR(val rv_width: Int = 64) extends Module {
 
     // MCAUSE
     // excode is generated in pipeline
-    when (es_ex_once === 1.U) {
+    when (es_ex_once === 1.U && !deleg) {
         csr_mcause.excode := io.es_excode(rv_width - 2, 0)
         csr_mcause.interrupt := io.es_excode(rv_width - 1)
     } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MCAUSE) {
@@ -406,16 +503,16 @@ class CSR(val rv_width: Int = 64) extends Module {
 
     // MTVAL
     csr_mtval.value := RegInit(0.U)
-    when (es_ex_once === 1.U && io.es_excode === excode_const.IllegalInstruction) {
+    when (es_ex_once === 1.U && io.es_excode === excode_const.IllegalInstruction && !deleg) {
         csr_mtval.value := io.fault_instr
-    } .elsewhen (es_ex_once === 1.U && (io.es_excode === excode_const.StoreAddrMisaligned || io.es_excode === excode_const.LoadAddrMisaligned || io.es_excode === excode_const.InstructionMisaligned)) {
+    } .elsewhen (es_ex_once === 1.U && (io.es_excode === excode_const.StoreAddrMisaligned || io.es_excode === excode_const.LoadAddrMisaligned || io.es_excode === excode_const.InstructionMisaligned) && !deleg) {
         csr_mtval.value := io.fault_addr
     } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MTVAL) {
         csr_mtval.value := io.es_csr_write_data
     }
 
     // SSTATUS
-    when (es_ex_once === 1.U && io.priv_level === priv_consts.User) {
+    when (es_ex_once === 1.U && deleg) {
         csr_sstatus.SPIE := csr_sstatus.SIE
     } .elsewhen (sret_once === 1.U) {
         csr_sstatus.SPIE := 1.U // according to the SPEC
@@ -423,7 +520,7 @@ class CSR(val rv_width: Int = 64) extends Module {
         csr_sstatus.SPIE := io.es_csr_write_data(5)
     }
     
-    when (es_ex_once === 1.U && io.priv_level === priv_consts.User) {
+    when (es_ex_once === 1.U && deleg) {
         csr_sstatus.SIE := 0.U
     } .elsewhen (sret_once === 1.U) {
         csr_sstatus.SIE := csr_sstatus.SPIE
@@ -431,7 +528,7 @@ class CSR(val rv_width: Int = 64) extends Module {
         csr_sstatus.SIE := io.es_csr_write_data(1)
     }
 
-    when (es_ex_once === 1.U && io.priv_level === priv_consts.User) {
+    when (es_ex_once === 1.U && deleg) {
         csr_sstatus.SPP := 0.U // User
     } .elsewhen (sret_once === 1.U) {
         csr_sstatus.SPP := 0.U // User, by spec
@@ -440,10 +537,17 @@ class CSR(val rv_width: Int = 64) extends Module {
     }
 
     // SEPC
-    when (es_ex_once === 1.U && io.priv_level === priv_consts.User) {
+    when (es_ex_once === 1.U && deleg) {
         csr_sepc.value := io.es_ex_pc
     } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.SEPC) {
         csr_sepc.value := io.es_csr_write_data
+    }
+
+    // STVEC
+    when (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.STVEC) {
+        csr_stvec.base := io.es_csr_write_data(rv_width - 1, 2)
+        // csr_mtvec.mode := io.es_csr_write_data(1,0)
+        // DIRECT Mode only
     }
 
     // READ Data path
@@ -519,6 +623,8 @@ class CSRSignal(val rv_width: Int = 64) extends Module {
         val mstatus_tsr = Output(UInt(1.W))
         val mstatus_mpp = Output(UInt(2.W))
         val sstatus_spp = Output(UInt(1.W))
+
+        val deleg_trap = Output(Bool())
     })
 
     val CSR_module = Module(new CSR)
@@ -559,6 +665,7 @@ class CSRSignal(val rv_width: Int = 64) extends Module {
     io.mepc := CSR_module.io.mepc
     io.sepc := CSR_module.io.sepc
     io.timer_int := CSR_module.io.time_int
+    io.deleg_trap := CSR_module.io.deleg_trap
 
     when (io.inst_reserved === 1.U) {
         // fill with instruction itself

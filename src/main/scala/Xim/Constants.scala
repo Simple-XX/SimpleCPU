@@ -5,6 +5,8 @@ import chisel3._
 trait CSRConstants {
     val MSTATUS = 0x300.U
     val MISA = 0x301.U
+    val MEDELEG = 0x302.U
+    val MIDELEG = 0x303.U
     val MIE = 0x304.U
     val MTVEC = 0x305.U
     val MSCRATCH = 0x340.U
@@ -41,14 +43,17 @@ trait CSRConstants {
 
 trait ExceptionConstants {
     // Currently we do not handle page fault related exceptions
-    var MachineTimerInt = UInt(64.W)
-    MachineTimerInt = (0x80000007.S).asUInt()
+    val MachineTimerInt = "h8000000000000007".U
+    val SupervisorTimerInt = "h8000000000000005".U
+    val UserTimerInt = "h8000000000000004".U
     // No external exceptions for now
     val InstructionMisaligned = 0x00000000.U
     val IllegalInstruction = 0x00000002.U
     val LoadAddrMisaligned = 0x00000004.U
     val StoreAddrMisaligned = 0x00000006.U
     val MEcall = 0x0000000b.U
+    val SEcall = 0x00000009.U
+    val UEcall = 0x00000008.U
 }
 
 trait PriviledgeLevelConstants {

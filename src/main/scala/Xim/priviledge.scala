@@ -31,6 +31,8 @@ class PriviledgeSignal extends Module {
         val sstatus_spp = Input(UInt(1.W))
 
         val priv_level = Output(UInt(2.W))
+
+        val deleg_trap = Input(Bool())
     })
 
     //priviledge level
@@ -52,7 +54,11 @@ class PriviledgeSignal extends Module {
     } .elsewhen (io.es_valid === 1.U && io.inst_sret === 1.U && priv_rlevel === priv_consts.Supervisor) {
         next_priv_level := io.sstatus_spp
     } .elsewhen (io.es_ex === 1.U) {
-        next_priv_level := priv_consts.Machine
+        when (io.deleg_trap === true.B) {
+            next_priv_level := priv_consts.Supervisor
+        } .otherwise {
+            next_priv_level := priv_consts.Machine
+        }
     } .otherwise {
         next_priv_level := priv_consts.Machine
     }
