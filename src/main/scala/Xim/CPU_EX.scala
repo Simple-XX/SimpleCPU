@@ -50,6 +50,23 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
         
         val es_instr = Output(UInt(32.W))
         val es_pc = Output(UInt(rv_width.W))
+
+        // for CSR and Priviledge Signal
+        val es_inst_valid = Output(UInt(1.W))
+        val es_inst_mret = Output(UInt(1.W))
+        val es_inst_sret = Output(UInt(1.W))
+        val mepc = Input(UInt(rv_width.W))
+        val sepc = Input(UInt(rv_width.W))
+        val new_instr = Output(UInt(1.W))
+        val csr_excode = Output(UInt(rv_width.W))
+        val es_csr_inst = Output(UInt(1.W))
+        val csr_inst_reserved = Output(UInt(1.W))
+        val csr_number = Output(UInt(12.W))
+        val csr_read_data = Input(UInt(rv_width.W))
+        val csr_write_data = Output(UInt(rv_width.W))
+        val csr_mtvec = Input(UInt(rv_width.W))
+        val csr_timer_int = Input(UInt(1.W))
+        val mstatus_tsr = Input(UInt(1.W))
     })
     
     val es_valid = RegInit(0.U(1.W))
@@ -66,40 +83,12 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     io.es_instr := es_instr
     io.es_pc := es_pc
     
-    //priviledge level
-    val priv_level = Module(new PriviledgeReg)
-    val priv_wen = Wire(Bool(1.W))
-    val priv_wlevel = Wire(UInt(2.W))
-    val priv_rlevel = Wire(UInt(2.W))
-    val next_priv_level = Wire(UInt(2.W))
-
-    priv_level.io.wen := priv_wen
-    priv_level.io.wlevel := priv_wlevel
-    priv_rlevel := priv_level.io.rlevel
-    priv_wlevel := next_priv_level
-
-    val CSR_module = Module(new CSR)
-    val CSR_ex = Wire(UInt(1.W))
-    val CSR_excode = Wire(UInt(rv_width.W))
-    val CSR_epc = Wire(UInt(rv_width.W))
-    val CSR_badaddr = Wire(UInt(rv_width.W))
-    val CSR_write = Wire(UInt(1.W))
-    val CSR_read_num = Wire(UInt(12.W))
-    val CSR_write_num = Wire(UInt(12.W))
-    val CSR_write_data = Wire(UInt(rv_width.W))
     val CSR_read_data = Wire(UInt(rv_width.W))
     val CSR_mtvec = Wire(UInt(rv_width.W))
-    val CSR_mip = Wire(UInt(rv_width.W))
-    val CSR_mie = Wire(UInt(rv_width.W))
-    val CSR_mstatus_mie = Wire(UInt(rv_width.W))
     val CSR_mstatus_tsr = Wire(UInt(1.W))
-    val CSR_mstatus_mpp = Wire(UInt(2.W))
-    val CSR_sstatus_spp = Wire(UInt(1.W))
     val es_csr = Wire(UInt(1.W))
     val timer_int = Wire(UInt(1.W))
     val timer_int_r = RegInit(0.U(1.W))
-    val CSR_fault_addr = Wire(UInt(rv_width.W))
-    val CSR_fault_instr = Wire(UInt(rv_width.W))
     val CSR_mepc = Wire(UInt(rv_width.W))
     val CSR_sepc = Wire(UInt(rv_width.W))
     
@@ -354,6 +343,7 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     J_imm_b.zero := 0.U
     
     Csr_num := es_instr(31, 20)
+    io.csr_number := Csr_num
     
     
     val opcode_decoder: decoder_7_128 = Module(new decoder_7_128)
@@ -615,6 +605,11 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     alu_overflow := es_alu.io.alu_overflow
     
     io.data_addr := alu_result
+
+    io.new_instr := es_new_instr
+    io.csr_excode := es_excode
+    io.es_csr_inst := es_csr
+    io.csr_inst_reserved := inst_reserved
     
     val is_mmio = Wire(UInt(1.W))
     is_mmio := (io.data_addr < 0x80000000L.U)
@@ -779,75 +774,19 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
       inst_slti | inst_sltiu | inst_xori | inst_ori | inst_andi | inst_slli | inst_slliw | inst_srli | inst_srliw | inst_srai | inst_sraiw | inst_add | inst_addw |
       inst_sub | inst_subw | inst_sll | inst_sllw | inst_slt | inst_sltu | inst_xor | inst_srl | inst_srlw | inst_sra | inst_sraw | inst_or | inst_and | inst_csrrc |
       inst_csrrci | inst_csrrs | inst_csrrsi | inst_csrrw | inst_csrrwi
-    
-    CSR_module.io.es_ex := CSR_ex
-    CSR_module.io.es_new_instr := es_new_instr_r // this is high only when new instr finally come in
-    CSR_module.io.es_excode := CSR_excode
-    CSR_module.io.es_ex_pc := CSR_epc
-    CSR_module.io.es_ex_addr := CSR_badaddr
-    CSR_module.io.es_csr_wr := CSR_write
-    CSR_module.io.es_csr_read_num := CSR_read_num
-    CSR_module.io.es_csr_write_num := CSR_write_num
-    CSR_module.io.es_csr_write_data := CSR_write_data
-    CSR_module.io.fault_addr := CSR_fault_addr
-    CSR_module.io.fault_instr := CSR_fault_instr
-    CSR_module.io.inst_mret := inst_mret
-    CSR_module.io.inst_sret := inst_sret
-    CSR_module.io.priv_level := priv_rlevel
-    CSR_module.io.inst_reload := inst_reload_r
-    CSR_read_data := CSR_module.io.es_csr_read_data
-    CSR_mtvec := CSR_module.io.mtrap_entry
-    CSR_mip := CSR_module.io.mip
-    CSR_mie := CSR_module.io.mie
-    CSR_mstatus_mie := CSR_module.io.mstatus_mie
-    CSR_mstatus_tsr := CSR_module.io.mstatus_tsr
-    CSR_mstatus_mpp := CSR_module.io.mstatus_mpp
-    CSR_sstatus_spp := CSR_module.io.sstatus_spp
-    CSR_mepc := CSR_module.io.mepc
-    CSR_sepc := CSR_module.io.sepc
-    timer_int := CSR_module.io.time_int
-    
-    
-    when (es_excode === excode_const.InstructionMisaligned) {
-        CSR_fault_addr := es_pc
-    } .elsewhen (es_excode === excode_const.LoadAddrMisaligned || es_excode === excode_const.StoreAddrMisaligned) {
-        CSR_fault_addr := io.data_addr
-    } .otherwise {
-        CSR_fault_addr := 0.U
-    }
-    
-    CSR_fault_instr := es_instr
-    
+
+    CSR_read_data := io.csr_read_data
+    CSR_mtvec := io.csr_mtvec
+    CSR_mstatus_tsr := io.mstatus_tsr
+    CSR_mepc := io.mepc
+    CSR_sepc := io.sepc
+    timer_int := io.csr_timer_int
+    io.csr_write_data := alu_result
+    io.es_inst_valid := es_valid
+    io.es_inst_mret := inst_mret
+    io.es_inst_sret := inst_sret
+
     es_csr := inst_csrrs | inst_csrrc | inst_csrrw | inst_csrrwi | inst_csrrsi | inst_csrrci
-    
-    CSR_ex := es_ex
-    CSR_excode := es_excode
-    CSR_epc := es_pc // only usable when ex is high
-    
-    
-    when (inst_reserved === 1.U) {
-        // fill with instruction itself
-        // TODO: deal with unaligned related exceptions
-        CSR_badaddr := es_instr
-    } .elsewhen (es_excode === excode_const.InstructionMisaligned) {
-        CSR_badaddr := es_pc
-    } .elsewhen (es_excode === excode_const.LoadAddrMisaligned || es_excode === excode_const.StoreAddrMisaligned) {
-        CSR_badaddr := io.data_addr
-    } .otherwise {
-        CSR_badaddr := 0.U
-    }
-    
-    CSR_write_data := alu_result
-    
-    when (es_csr === 1.U && es_new_instr === 1.U && es_ex === 0.U) {
-        CSR_write := 1.U
-    } .otherwise {
-        CSR_write := 0.U
-    }
-    
-    CSR_read_num := Csr_num
-    CSR_write_num := Csr_num
-    
     
     // wdata related signals
     val reg_wdata_alu = Wire(UInt(1.W))
@@ -1049,26 +988,6 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
         // actually 0x8000000000000007
     } .otherwise {
         es_excode := 0.U
-    }
-
-    object priv_consts extends PriviledgeLevelConstants
-
-    when (es_valid === 1.U && inst_mret === 1.U && priv_rlevel === priv_consts.Machine) {
-        next_priv_level := CSR_mstatus_mpp
-    } .elsewhen (es_valid === 1.U && inst_sret === 1.U && priv_rlevel === priv_consts.Supervisor) {
-        next_priv_level := CSR_sstatus_spp
-    } .elsewhen (es_ex === 1.U) {
-        next_priv_level := priv_consts.Machine
-    } .otherwise {
-        next_priv_level := priv_consts.Machine
-    }
-
-    when (es_valid === 1.U && (inst_mret === 1.U || inst_sret === 1.U)) {
-        priv_wen := true.B
-    } .elsewhen (es_ex === 1.U) {
-        priv_wen := true.B
-    } .otherwise {
-        priv_wen := false.B
     }
     
     io.ex_valid := es_ex

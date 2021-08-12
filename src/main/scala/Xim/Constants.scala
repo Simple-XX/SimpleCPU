@@ -52,10 +52,7 @@ trait ExceptionConstants {
 }
 
 trait PriviledgeLevelConstants {
-    val User = UInt(2.W)
-    val Supervisor = UInt(2.W)
-    val Machine = UInt(2.W)
-    User = 0.U
-    Supervisor = 1.U
-    Machine = 3.U 
+    val User = 0.U
+    val Supervisor = 1.U
+    val Machine = 3.U 
 }

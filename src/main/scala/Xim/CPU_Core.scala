@@ -73,6 +73,36 @@ class CPU_Core(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     IF_Stage.io.br_target := EX_Stage.io.br_target
     IF_Stage.io.ex_valid := EX_Stage.io.ex_valid
     IF_Stage.io.ex_target := EX_Stage.io.ex_target
+
+    val PrivModule = Module(new PriviledgeSignal)
+    val CSRModule = Module(new CSRSignal)
+    PrivModule.io.es_valid := EX_Stage.io.es_inst_valid
+    PrivModule.io.es_ex := EX_Stage.io.ex_valid
+    PrivModule.io.inst_mret := EX_Stage.io.es_inst_mret
+    PrivModule.io.inst_sret := EX_Stage.io.es_inst_sret
+    PrivModule.io.mstatus_mpp := CSRModule.io.mstatus_mpp
+    PrivModule.io.sstatus_spp := CSRModule.io.sstatus_spp
+    CSRModule.io.priv_level := PrivModule.io.priv_level
+
+    EX_Stage.io.mepc := CSRModule.io.mepc
+    EX_Stage.io.sepc := CSRModule.io.sepc
+    CSRModule.io.es_new_instr := EX_Stage.io.new_instr
+    CSRModule.io.es_ex := EX_Stage.io.ex_valid
+    CSRModule.io.es_excode := EX_Stage.io.csr_excode
+    CSRModule.io.es_pc := EX_Stage.io.es_pc
+    CSRModule.io.es_instr := EX_Stage.io.es_instr
+    CSRModule.io.es_csr := EX_Stage.io.es_csr_inst
+    CSRModule.io.inst_reserved := EX_Stage.io.csr_inst_reserved
+    CSRModule.io.inst_reload_r := EX_Stage.io.inst_reload
+    CSRModule.io.inst_mret := EX_Stage.io.es_inst_mret
+    CSRModule.io.inst_sret := EX_Stage.io.es_inst_sret
+    CSRModule.io.data_addr := EX_Stage.io.data_addr
+    CSRModule.io.Csr_num := EX_Stage.io.csr_number
+    EX_Stage.io.csr_read_data := CSRModule.io.csr_read_data
+    CSRModule.io.csr_write_data := EX_Stage.io.csr_write_data
+    EX_Stage.io.csr_mtvec := CSRModule.io.csr_mtvec
+    EX_Stage.io.csr_timer_int := CSRModule.io.timer_int
+    EX_Stage.io.mstatus_tsr := CSRModule.io.mstatus_tsr
     
     val branch_predicter = Module(new branch_pred)
     
