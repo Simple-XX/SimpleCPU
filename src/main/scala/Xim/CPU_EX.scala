@@ -67,6 +67,7 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
         val csr_mtvec = Input(UInt(rv_width.W))
         val csr_timer_int = Input(UInt(1.W))
         val mstatus_tsr = Input(UInt(1.W))
+        val priv_level = Input(UInt(2.W))
     })
     
     val es_valid = RegInit(0.U(1.W))
@@ -976,7 +977,13 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     } .else*/when (es_valid === 1.U && fs_ex_r === 1.U) {
         es_excode := fs_excode_r
     } .elsewhen (es_valid  === 1.U && es_ecall === 1.U) {
-        es_excode := excode_const.MEcall
+        when (io.priv_level === priv_consts.Machine) {
+            es_excode := excode_const.MEcall
+        } .elsewhen (io.priv_level === priv_consts.Supervisor) {
+            es_excode := excode_const.SEcall
+        } .otherwise {
+            es_excode := excode_const.UEcall
+        }
     } .elsewhen (es_valid  === 1.U && inst_reserved === 1.U) {
         es_excode := excode_const.IllegalInstruction
     } .elsewhen (es_valid  === 1.U && es_read_ex === 1.U) {
@@ -984,7 +991,13 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     } .elsewhen (es_valid  === 1.U && es_write_ex === 1.U) {
         es_excode := excode_const.StoreAddrMisaligned
     } .elsewhen (es_valid === 1.U && timer_int_r === 1.U) {
-        es_excode := excode_const.MachineTimerInt
+        when (io.priv_level === priv_consts.Machine) {
+            es_excode := excode_const.MachineTimerInt
+        } .elsewhen (io.priv_level === priv_consts.Supervisor) {
+            es_excode := excode_const.SupervisorTimerInt
+        } .otherwise {
+            es_excode := excode_const.UserTimerInt
+        }
     } .otherwise {
         es_excode := 0.U
     }

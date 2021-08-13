@@ -332,10 +332,15 @@ class CSR(val rv_width: Int = 64) extends Module {
     val csr_stval = RegInit(reset_stval)
 
     val isInterrupt = Wire(Bool())
-    isInterrupt := io.es_excode(rv_width - 1) === 1.U
     val deleg = Wire(Bool())
+    val SupervisorTIDeleg = Wire(UInt(1.W))
+    val UserTIDeleg = Wire(UInt(1.W))
+
+    isInterrupt := io.es_excode(rv_width - 1) === 1.U
     deleg := ((isInterrupt && csr_mideleg.value(io.es_excode(3,0))) || (!isInterrupt && csr_medeleg.value(io.es_excode(3,0))) && io.priv_level =/= priv_consts.Machine)
     io.deleg_trap := deleg
+    SupervisorTIDeleg := csr_mideleg.value(5)
+    UserTIDeleg := csr_mideleg.value(4)
     
     when (io.es_new_instr === 1.U && io.es_ex === 1.U) {
         es_ex_once := 1.U
@@ -366,6 +371,33 @@ class CSR(val rv_width: Int = 64) extends Module {
     csr_mimpid.zero := 0.U
 
     csr_mhartid.zero := 0.U
+
+    // timer interrupt
+    when (mtime_full === mtimecmp_full) {
+        when (io.priv_level === priv_consts.Machine) {
+            csr_mip.MTIP := 1.U
+        } .elsewhen (io.priv_level === priv_consts.Supervisor) {
+            when (SupervisorTIDeleg === 1.U) {
+                csr_sip.STIP := 1.U
+            } .otherwise {
+                csr_mip.MTIP := 1.U
+            }
+        } .otherwise {
+            when (UserTIDeleg === 1.U) {
+                csr_sip.STIP := 1.U
+            } .otherwise {
+                csr_mip.MTIP := 1.U
+            }
+        }
+    }
+
+    when (csr_mip.MTIP === 1.U && csr_mstatus.MIE === 1.U && csr_mie.MTIE === 1.U) {
+        time_int := 1.U
+    } .elsewhen (csr_sip.STIP === 1.U && csr_sstatus.SIE === 1.U && csr_sie.STIE === 1.U) {
+        time_int := 1.U
+    } .otherwise {
+        time_int := 0.U
+    }
 
     // MSTATUS
     when (es_ex_once === 1.U && !deleg) {
@@ -423,17 +455,9 @@ class CSR(val rv_width: Int = 64) extends Module {
         csr_mip.MEIP := io.es_csr_write_data(11)
     }
     
-    when (csr_mip.MTIP === 1.U && csr_mstatus.MIE === 1.U && csr_mie.MTIE === 1.U) {
-        time_int := 1.U
-    } .otherwise {
-        time_int := 0.U
-    }
-    
     when (io.es_csr_wr === 1.U && (io.es_csr_write_num === csr_consts.MTIME ||
       io.es_csr_write_num === csr_consts.MTIMECMP )) {
         csr_mip.MTIP := 0.U
-    } .elsewhen (mtime_full === mtimecmp_full) {
-        csr_mip.MTIP := 1.U
     }
     
     //io.mip := csr_mip.asUInt()
@@ -550,6 +574,48 @@ class CSR(val rv_width: Int = 64) extends Module {
         // DIRECT Mode only
     }
 
+    // SIP
+    when (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.SIP) {
+        csr_sip.SEIP := io.es_csr_write_data(9)
+    }
+    
+    when (io.es_csr_wr === 1.U && (io.es_csr_write_num === csr_consts.MTIME ||
+      io.es_csr_write_num === csr_consts.MTIMECMP )) {
+        csr_sip.STIP := 0.U
+    }
+    
+    // SIE
+    when (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.SIE) {
+        csr_sie.SEIE := io.es_csr_write_data(9)
+        csr_sie.STIE := io.es_csr_write_data(5)
+        csr_sie.SSIE := io.es_csr_write_data(1)
+    }
+
+    // SSCRATCH
+    when (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.SSCRATCH) {
+        csr_sscratch.value := io.es_csr_write_data
+    }
+
+    // SCAUSE
+    // excode is generated in pipeline
+    when (es_ex_once === 1.U && deleg) {
+        csr_scause.excode := io.es_excode(rv_width - 2, 0)
+        csr_scause.interrupt := io.es_excode(rv_width - 1)
+    } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.SCAUSE) {
+        csr_scause.interrupt := io.es_csr_write_data(rv_width - 1)
+        csr_scause.excode := io.es_csr_write_data(rv_width - 2, 0)
+    }
+
+    // STVAL
+    csr_stval.value := RegInit(0.U)
+    when (es_ex_once === 1.U && io.es_excode === excode_const.IllegalInstruction && deleg) {
+        csr_stval.value := io.fault_instr
+    } .elsewhen (es_ex_once === 1.U && (io.es_excode === excode_const.StoreAddrMisaligned || io.es_excode === excode_const.LoadAddrMisaligned || io.es_excode === excode_const.InstructionMisaligned) && deleg) {
+        csr_stval.value := io.fault_addr
+    } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.STVAL) {
+        csr_stval.value := io.es_csr_write_data
+    }
+
     // READ Data path
 
     when (io.es_csr_read_num === csr_consts.MSTATUS) {
@@ -582,6 +648,22 @@ class CSR(val rv_width: Int = 64) extends Module {
         io.es_csr_read_data := csr_mtimecmp.asUInt()
     } .elsewhen (io.es_csr_read_num === csr_consts.MTIME) {
         io.es_csr_read_data := csr_mtime.asUInt()
+    } .elsewhen (io.es_csr_read_num === csr_consts.SSTATUS) {
+        io.es_csr_read_data := csr_sstatus.asUInt()
+    } .elsewhen (io.es_csr_read_num === csr_consts.STVEC) {
+        io.es_csr_read_data := csr_stvec.asUInt()
+    } .elsewhen (io.es_csr_read_num === csr_consts.SEPC) {
+        io.es_csr_read_data := csr_sepc.asUInt()
+    } .elsewhen (io.es_csr_read_num === csr_consts.SIP) {
+        io.es_csr_read_data := csr_sip.asUInt()
+    } .elsewhen (io.es_csr_read_num === csr_consts.SIE) {
+        io.es_csr_read_data := csr_sie.asUInt()
+    } .elsewhen (io.es_csr_read_num === csr_consts.SSCRATCH) {
+        io.es_csr_read_data := csr_sscratch.asUInt()
+    } .elsewhen (io.es_csr_read_num === csr_consts.SCAUSE) {
+        io.es_csr_read_data := csr_scause.asUInt()
+    } .elsewhen (io.es_csr_read_num === csr_consts.STVAL) {
+        io.es_csr_read_data := csr_stval.asUInt()
     } .otherwise {
         // WARNING: TEST ONLY
         io.es_csr_read_data := csr_mtime.asUInt()

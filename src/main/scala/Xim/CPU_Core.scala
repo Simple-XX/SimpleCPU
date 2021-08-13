@@ -84,6 +84,7 @@ class CPU_Core(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     PrivModule.io.sstatus_spp := CSRModule.io.sstatus_spp
     CSRModule.io.priv_level := PrivModule.io.priv_level
     PrivModule.io.deleg_trap := CSRModule.io.deleg_trap
+    EX_Stage.io.priv_level := PrivModule.io.priv_level
 
     EX_Stage.io.mepc := CSRModule.io.mepc
     EX_Stage.io.sepc := CSRModule.io.sepc
