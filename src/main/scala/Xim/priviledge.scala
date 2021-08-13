@@ -23,9 +23,9 @@ class PriviledgeReg extends Module {
 class PriviledgeSignal extends Module {
     val io = IO(new Bundle {
         val es_valid = Input(UInt(1.W))
-        val es_ex = Input(UInt(1.W))
-        val inst_mret = Input(UInt(1.W))
-        val inst_sret = Input(UInt(1.W))
+        val es_ex_work = Input(UInt(1.W))
+        val mret_work = Input(UInt(1.W))
+        val sret_work = Input(UInt(1.W))
 
         val mstatus_mpp = Input(UInt(2.W))
         val sstatus_spp = Input(UInt(1.W))
@@ -49,11 +49,11 @@ class PriviledgeSignal extends Module {
 
     io.priv_level := priv_rlevel
 
-    when (io.es_valid === 1.U && io.inst_mret === 1.U && priv_rlevel === priv_consts.Machine) {
+    when (io.es_valid === 1.U && io.mret_work === 1.U && priv_rlevel === priv_consts.Machine) {
         next_priv_level := io.mstatus_mpp
-    } .elsewhen (io.es_valid === 1.U && io.inst_sret === 1.U && priv_rlevel === priv_consts.Supervisor) {
+    } .elsewhen (io.es_valid === 1.U && io.sret_work === 1.U && priv_rlevel === priv_consts.Supervisor) {
         next_priv_level := io.sstatus_spp
-    } .elsewhen (io.es_ex === 1.U) {
+    } .elsewhen (io.es_ex_work === 1.U) {
         when (io.deleg_trap === true.B) {
             next_priv_level := priv_consts.Supervisor
         } .otherwise {
@@ -63,9 +63,9 @@ class PriviledgeSignal extends Module {
         next_priv_level := priv_consts.Machine
     }
 
-    when (io.es_valid === 1.U && (io.inst_mret === 1.U || io.inst_sret === 1.U)) {
+    when (io.es_valid === 1.U && (io.mret_work === 1.U || io.sret_work === 1.U)) {
         priv_wen := true.B
-    } .elsewhen (io.es_ex === 1.U) {
+    } .elsewhen (io.es_ex_work === 1.U) {
         priv_wen := true.B
     } .otherwise {
         priv_wen := false.B

@@ -5,11 +5,13 @@ import chisel3._
 class CSR(val rv_width: Int = 64) extends Module {
     val io = IO(new Bundle {
         val es_ex = Input(UInt(1.W))
+        val es_ex_work = Output(UInt(1.W))
         val es_new_instr = Input(UInt(1.W))
         val es_excode = Input(UInt(rv_width.W))
         val es_ex_pc = Input(UInt(rv_width.W))
         val es_ex_addr = Input(UInt(rv_width.W))
         val es_csr_wr = Input(UInt(1.W))
+        val es_csr_op = Input(UInt(1.W))
         val es_csr_read_num = Input(UInt(12.W))
         val es_csr_write_num = Input(UInt(12.W))
         val es_csr_write_data = Input(UInt(rv_width.W))
@@ -17,7 +19,7 @@ class CSR(val rv_width: Int = 64) extends Module {
         // timer interrupt
         val time_int = Output(UInt(1.W))
         // trap entry
-        val mtrap_entry = Output(UInt(rv_width.W))
+        val trap_entry = Output(UInt(rv_width.W))
         // MEPC
         val mepc = Output(UInt(rv_width.W))
         
@@ -35,8 +37,10 @@ class CSR(val rv_width: Int = 64) extends Module {
         
         // mret
         val inst_mret = Input(UInt(1.W))
+        val mret_work = Output(UInt(1.W))
         // sret
         val inst_sret = Input(UInt(1.W))
+        val sret_work = Output(UInt(1.W))
 
         // priviledge level
         val priv_level = Input(UInt(2.W))
@@ -46,6 +50,9 @@ class CSR(val rv_width: Int = 64) extends Module {
 
         // delegate trap
         val deleg_trap = Output(Bool())
+
+        // illegal csr operations
+        val illegal_csr = Output(Bool())
     })
     // unimplemented signal:
     
@@ -335,9 +342,10 @@ class CSR(val rv_width: Int = 64) extends Module {
     val deleg = Wire(Bool())
     val SupervisorTIDeleg = Wire(UInt(1.W))
     val UserTIDeleg = Wire(UInt(1.W))
+    val machine_csr_op = Wire(Bool())
 
     isInterrupt := io.es_excode(rv_width - 1) === 1.U
-    deleg := ((isInterrupt && csr_mideleg.value(io.es_excode(3,0))) || (!isInterrupt && csr_medeleg.value(io.es_excode(3,0))) && io.priv_level =/= priv_consts.Machine)
+    deleg := ((isInterrupt && csr_mideleg.value(io.es_excode(3,0)) =/= 0.U) || (!isInterrupt && csr_medeleg.value(io.es_excode(3,0)) =/= 0.U)) && io.priv_level =/= priv_consts.Machine
     io.deleg_trap := deleg
     SupervisorTIDeleg := csr_mideleg.value(5)
     UserTIDeleg := csr_mideleg.value(4)
@@ -371,6 +379,10 @@ class CSR(val rv_width: Int = 64) extends Module {
     csr_mimpid.zero := 0.U
 
     csr_mhartid.zero := 0.U
+
+    io.es_ex_work := es_ex_once
+    io.mret_work := mret_once
+    io.sret_work := sret_once
 
     // timer interrupt
     when (mtime_full === mtimecmp_full) {
@@ -446,7 +458,11 @@ class CSR(val rv_width: Int = 64) extends Module {
         // DIRECT Mode only
     }
     
-    io.mtrap_entry := csr_mtvec.asUInt()
+    when (deleg) {
+        io.trap_entry := csr_stvec.asUInt()
+    } .otherwise {
+        io.trap_entry := csr_mtvec.asUInt()
+    }
 
     // MIP
     // TODO: revise updating condition of MIP and MIE
@@ -535,6 +551,16 @@ class CSR(val rv_width: Int = 64) extends Module {
         csr_mtval.value := io.es_csr_write_data
     }
 
+    // MIDELEG
+    when (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MIDELEG) {
+        csr_mideleg.value := io.es_csr_write_data
+    }
+
+    // MEDELEG
+    when (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.MEDELEG) {
+        csr_medeleg.value := io.es_csr_write_data
+    }
+
     // SSTATUS
     when (es_ex_once === 1.U && deleg) {
         csr_sstatus.SPIE := csr_sstatus.SIE
@@ -553,7 +579,7 @@ class CSR(val rv_width: Int = 64) extends Module {
     }
 
     when (es_ex_once === 1.U && deleg) {
-        csr_sstatus.SPP := 0.U // User
+        csr_sstatus.SPP := io.priv_level
     } .elsewhen (sret_once === 1.U) {
         csr_sstatus.SPP := 0.U // User, by spec
     } .elsewhen (io.es_csr_wr === 1.U && io.es_csr_write_num === csr_consts.SSTATUS) {
@@ -620,56 +646,90 @@ class CSR(val rv_width: Int = 64) extends Module {
 
     when (io.es_csr_read_num === csr_consts.MSTATUS) {
         io.es_csr_read_data := csr_mstatus.asUInt()
+        machine_csr_op := true.B
     } .elsewhen(io.es_csr_read_num === csr_consts.MISA) {
         io.es_csr_read_data := csr_misa.asUInt()
+        machine_csr_op := true.B
     } .elsewhen (io.es_csr_read_num === csr_consts.MVENDORID) {
         io.es_csr_read_data := csr_mvendorid.asUInt()
+        machine_csr_op := true.B
     } .elsewhen (io.es_csr_read_num === csr_consts.MARCHID) {
         io.es_csr_read_data := csr_marchid.asUInt()
+        machine_csr_op := true.B
     } .elsewhen (io.es_csr_read_num === csr_consts.MIMPID) {
         io.es_csr_read_data := csr_mimpid.asUInt()
+        machine_csr_op := true.B
     } .elsewhen (io.es_csr_read_num === csr_consts.MHARTID) {
         io.es_csr_read_data := csr_mhartid.asUInt()
+        machine_csr_op := true.B
     } .elsewhen (io.es_csr_read_num === csr_consts.MTVEC) {
         io.es_csr_read_data := csr_mtvec.asUInt()
+        machine_csr_op := true.B
     } .elsewhen (io.es_csr_read_num === csr_consts.MIP) {
         io.es_csr_read_data := csr_mip.asUInt()
+        machine_csr_op := true.B
     } .elsewhen (io.es_csr_read_num === csr_consts.MIE) {
         io.es_csr_read_data := csr_mie.asUInt()
+        machine_csr_op := true.B
     } .elsewhen (io.es_csr_read_num === csr_consts.MSCRATCH) {
         io.es_csr_read_data := csr_mscratch.asUInt()
+        machine_csr_op := true.B
     } .elsewhen (io.es_csr_read_num === csr_consts.MEPC) {
         io.es_csr_read_data := csr_mepc.asUInt()
+        machine_csr_op := true.B
     } .elsewhen (io.es_csr_read_num === csr_consts.MCAUSE) {
         io.es_csr_read_data := csr_mcause.asUInt()
+        machine_csr_op := true.B
     } .elsewhen (io.es_csr_read_num === csr_consts.MTVAL) {
         io.es_csr_read_data := csr_mtval.asUInt()
+        machine_csr_op := true.B
+    } .elsewhen (io.es_csr_read_num === csr_consts.MIDELEG) {
+        io.es_csr_read_data := csr_mideleg.asUInt()
+        machine_csr_op := true.B
+    } .elsewhen (io.es_csr_read_num === csr_consts.MEDELEG) {
+        io.es_csr_read_data := csr_medeleg.asUInt()
+        machine_csr_op := true.B
     } .elsewhen (io.es_csr_read_num === csr_consts.MTIMECMP) {
         io.es_csr_read_data := csr_mtimecmp.asUInt()
+        machine_csr_op := false.B
     } .elsewhen (io.es_csr_read_num === csr_consts.MTIME) {
         io.es_csr_read_data := csr_mtime.asUInt()
+        machine_csr_op := false.B
     } .elsewhen (io.es_csr_read_num === csr_consts.SSTATUS) {
         io.es_csr_read_data := csr_sstatus.asUInt()
+        machine_csr_op := false.B
     } .elsewhen (io.es_csr_read_num === csr_consts.STVEC) {
         io.es_csr_read_data := csr_stvec.asUInt()
+        machine_csr_op := false.B
     } .elsewhen (io.es_csr_read_num === csr_consts.SEPC) {
         io.es_csr_read_data := csr_sepc.asUInt()
+        machine_csr_op := false.B
     } .elsewhen (io.es_csr_read_num === csr_consts.SIP) {
         io.es_csr_read_data := csr_sip.asUInt()
+        machine_csr_op := false.B
     } .elsewhen (io.es_csr_read_num === csr_consts.SIE) {
         io.es_csr_read_data := csr_sie.asUInt()
+        machine_csr_op := false.B
     } .elsewhen (io.es_csr_read_num === csr_consts.SSCRATCH) {
         io.es_csr_read_data := csr_sscratch.asUInt()
+        machine_csr_op := false.B
     } .elsewhen (io.es_csr_read_num === csr_consts.SCAUSE) {
         io.es_csr_read_data := csr_scause.asUInt()
+        machine_csr_op := false.B
     } .elsewhen (io.es_csr_read_num === csr_consts.STVAL) {
         io.es_csr_read_data := csr_stval.asUInt()
+        machine_csr_op := false.B
     } .otherwise {
         // WARNING: TEST ONLY
         io.es_csr_read_data := csr_mtime.asUInt()
+        machine_csr_op := false.B
     }
-
-
+    
+    when (io.priv_level =/= priv_consts.Machine && io.es_csr_op === 1.U && machine_csr_op) {
+        io.illegal_csr := true.B
+    } .otherwise {
+        io.illegal_csr := false.B
+    }
 }
 
 object CSR extends App {
@@ -683,6 +743,7 @@ class CSRSignal(val rv_width: Int = 64) extends Module {
 
         val es_new_instr = Input(UInt(1.W))
         val es_ex = Input(UInt(1.W))
+        val es_ex_work = Output(UInt(1.W))
         val es_excode = Input(UInt(rv_width.W))
         val es_pc = Input(UInt(rv_width.W))
         val es_instr = Input(UInt(32.W))
@@ -692,12 +753,14 @@ class CSRSignal(val rv_width: Int = 64) extends Module {
         val inst_reload_r = Input(UInt(1.W))
         val inst_mret = Input(UInt(1.W))
         val inst_sret = Input(UInt(1.W))
+        val mret_work = Output(UInt(1.W))
+        val sret_work = Output(UInt(1.W))
         val data_addr = Input(UInt(rv_width.W))
 
         val Csr_num = Input(UInt(12.W))
         val csr_read_data = Output(UInt(rv_width.W))
         val csr_write_data = Input(UInt(rv_width.W))
-        val csr_mtvec = Output(UInt(rv_width.W))
+        val trap_entry = Output(UInt(rv_width.W))
 
         val timer_int = Output(UInt(1.W))
         val priv_level = Input(UInt(2.W))
@@ -707,6 +770,8 @@ class CSRSignal(val rv_width: Int = 64) extends Module {
         val sstatus_spp = Output(UInt(1.W))
 
         val deleg_trap = Output(Bool())
+
+        val illegal_csr = Output(Bool())
     })
 
     val CSR_module = Module(new CSR)
@@ -719,6 +784,7 @@ class CSRSignal(val rv_width: Int = 64) extends Module {
     val CSR_write_num = Wire(UInt(12.W))
     val CSR_fault_addr = Wire(UInt(rv_width.W))
     val CSR_fault_instr = Wire(UInt(rv_width.W))
+    val CSR_op = Wire(UInt(1.W))
 
     CSR_ex := io.es_ex
     CSR_excode := io.es_excode
@@ -730,6 +796,7 @@ class CSRSignal(val rv_width: Int = 64) extends Module {
     CSR_module.io.es_ex_pc := CSR_epc
     CSR_module.io.es_ex_addr := CSR_badaddr
     CSR_module.io.es_csr_wr := CSR_write
+    CSR_module.io.es_csr_op := CSR_op
     CSR_module.io.es_csr_read_num := CSR_read_num
     CSR_module.io.es_csr_write_num := CSR_write_num
     CSR_module.io.es_csr_write_data := io.csr_write_data
@@ -740,7 +807,7 @@ class CSRSignal(val rv_width: Int = 64) extends Module {
     CSR_module.io.priv_level := io.priv_level
     CSR_module.io.inst_reload := io.inst_reload_r
     io.csr_read_data := CSR_module.io.es_csr_read_data
-    io.csr_mtvec := CSR_module.io.mtrap_entry
+    io.trap_entry := CSR_module.io.trap_entry
     io.mstatus_tsr := CSR_module.io.mstatus_tsr
     io.mstatus_mpp := CSR_module.io.mstatus_mpp
     io.sstatus_spp := CSR_module.io.sstatus_spp
@@ -748,6 +815,10 @@ class CSRSignal(val rv_width: Int = 64) extends Module {
     io.sepc := CSR_module.io.sepc
     io.timer_int := CSR_module.io.time_int
     io.deleg_trap := CSR_module.io.deleg_trap
+    io.illegal_csr := CSR_module.io.illegal_csr
+    io.es_ex_work := CSR_module.io.es_ex_work
+    io.mret_work := CSR_module.io.mret_work
+    io.sret_work := CSR_module.io.sret_work
 
     when (io.inst_reserved === 1.U) {
         // fill with instruction itself
@@ -774,7 +845,13 @@ class CSRSignal(val rv_width: Int = 64) extends Module {
     } .otherwise {
         CSR_write := 0.U
     }
-    
+
+    when (io.es_csr === 1.U) {
+        CSR_op := 1.U
+    } .otherwise {
+        CSR_op := 0.U
+    }
+
     CSR_fault_instr := io.es_instr
     CSR_read_num := io.Csr_num
     CSR_write_num := io.Csr_num

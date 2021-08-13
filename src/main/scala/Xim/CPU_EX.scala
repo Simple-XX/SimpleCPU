@@ -64,10 +64,11 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
         val csr_number = Output(UInt(12.W))
         val csr_read_data = Input(UInt(rv_width.W))
         val csr_write_data = Output(UInt(rv_width.W))
-        val csr_mtvec = Input(UInt(rv_width.W))
+        val trap_entry = Input(UInt(rv_width.W))
         val csr_timer_int = Input(UInt(1.W))
         val mstatus_tsr = Input(UInt(1.W))
         val priv_level = Input(UInt(2.W))
+        val illegal_csr = Input(Bool())
     })
     
     val es_valid = RegInit(0.U(1.W))
@@ -85,7 +86,7 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
     io.es_pc := es_pc
     
     val CSR_read_data = Wire(UInt(rv_width.W))
-    val CSR_mtvec = Wire(UInt(rv_width.W))
+    io.ex_target := io.trap_entry
     val CSR_mstatus_tsr = Wire(UInt(1.W))
     val es_csr = Wire(UInt(1.W))
     val timer_int = Wire(UInt(1.W))
@@ -777,7 +778,6 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
       inst_csrrci | inst_csrrs | inst_csrrsi | inst_csrrw | inst_csrrwi
 
     CSR_read_data := io.csr_read_data
-    CSR_mtvec := io.csr_mtvec
     CSR_mstatus_tsr := io.mstatus_tsr
     CSR_mepc := io.mepc
     CSR_sepc := io.sepc
@@ -931,8 +931,6 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
         reg_wdata_s := 0.S
     }
     
-    io.ex_target := CSR_mtvec
-    
     val fs_ex_r = RegInit(0.U(1.W))
     val fs_excode_r = RegInit(0.U(rv_width.W))
     when (es_new_instr === 1.U) {
@@ -967,6 +965,8 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
         es_ex := 1.U
     } .elsewhen (es_valid === 1.U && es_write_ex === 1.U) {
         es_ex := 1.U
+    } .elsewhen (es_valid === 1.U && io.illegal_csr) {
+        es_ex := 1.U
     } .otherwise {
         es_ex := 0.U
     }
@@ -998,6 +998,8 @@ class CPU_EX(val rv_width: Int = 64) extends Module {
         } .otherwise {
             es_excode := excode_const.UserTimerInt
         }
+    } .elsewhen (es_valid === 1.U && io.illegal_csr) {
+        es_excode := excode_const.IllegalInstruction
     } .otherwise {
         es_excode := 0.U
     }

@@ -77,9 +77,9 @@ class CPU_Core(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     val PrivModule = Module(new PriviledgeSignal)
     val CSRModule = Module(new CSRSignal)
     PrivModule.io.es_valid := EX_Stage.io.es_inst_valid
-    PrivModule.io.es_ex := EX_Stage.io.ex_valid
-    PrivModule.io.inst_mret := EX_Stage.io.es_inst_mret
-    PrivModule.io.inst_sret := EX_Stage.io.es_inst_sret
+    PrivModule.io.es_ex_work := CSRModule.io.es_ex_work
+    PrivModule.io.mret_work := CSRModule.io.mret_work
+    PrivModule.io.sret_work := CSRModule.io.sret_work
     PrivModule.io.mstatus_mpp := CSRModule.io.mstatus_mpp
     PrivModule.io.sstatus_spp := CSRModule.io.sstatus_spp
     CSRModule.io.priv_level := PrivModule.io.priv_level
@@ -102,10 +102,11 @@ class CPU_Core(val rv_width: Int = 64, inSOC: Boolean = false) extends Module {
     CSRModule.io.Csr_num := EX_Stage.io.csr_number
     EX_Stage.io.csr_read_data := CSRModule.io.csr_read_data
     CSRModule.io.csr_write_data := EX_Stage.io.csr_write_data
-    EX_Stage.io.csr_mtvec := CSRModule.io.csr_mtvec
     EX_Stage.io.csr_timer_int := CSRModule.io.timer_int
     EX_Stage.io.mstatus_tsr := CSRModule.io.mstatus_tsr
-    
+    EX_Stage.io.trap_entry := CSRModule.io.trap_entry
+    EX_Stage.io.illegal_csr := CSRModule.io.illegal_csr
+
     val branch_predicter = Module(new branch_pred)
     
     IF_Stage.io.next_branch := branch_predicter.io.IF_next_branch
